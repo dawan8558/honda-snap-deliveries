@@ -6,6 +6,7 @@ import VehicleView from './VehicleView';
 import UserManagement from './UserManagement';
 import FrameManagement from '../OEMAdmin/FrameManagement';
 import DeliveryReports from '../OEMAdmin/DeliveryReports';
+import Gallery from '../ui/Gallery';
 
 const DealershipDashboard = ({ user, onLogout }) => {
   const [activeTab, setActiveTab] = useState('vehicles');
@@ -38,11 +39,12 @@ const DealershipDashboard = ({ user, onLogout }) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
             <TabsTrigger value="operators">Operators</TabsTrigger>
             <TabsTrigger value="frames">Frames</TabsTrigger>
             <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
+            <TabsTrigger value="gallery">Gallery</TabsTrigger>
           </TabsList>
 
           <TabsContent value="vehicles">
@@ -59,6 +61,10 @@ const DealershipDashboard = ({ user, onLogout }) => {
 
           <TabsContent value="deliveries">
             <DeliveryReports userRole="dealership_admin" dealershipId={user.dealership_id} />
+          </TabsContent>
+
+          <TabsContent value="gallery">
+            <Gallery userRole="dealership_admin" dealershipId={user.dealership_id} />
           </TabsContent>
         </Tabs>
       </main>

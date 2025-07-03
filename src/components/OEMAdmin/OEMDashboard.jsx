@@ -7,6 +7,7 @@ import VehicleManagement from './VehicleManagement';
 import UserManagement from './UserManagement';
 import FrameManagement from './FrameManagement';
 import DeliveryReports from './DeliveryReports';
+import Gallery from '../ui/Gallery';
 
 const OEMDashboard = ({ user, onLogout }) => {
   console.log('Rendering OEM Dashboard');
@@ -46,6 +47,7 @@ const OEMDashboard = ({ user, onLogout }) => {
             <TabsTrigger value="users" className="px-4 py-2">Users</TabsTrigger>
             <TabsTrigger value="frames" className="px-4 py-2">Frames</TabsTrigger>
             <TabsTrigger value="reports" className="px-4 py-2">Reports</TabsTrigger>
+            <TabsTrigger value="gallery" className="px-4 py-2">Gallery</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dealerships">
@@ -66,6 +68,10 @@ const OEMDashboard = ({ user, onLogout }) => {
 
           <TabsContent value="reports">
             <DeliveryReports userRole="oem_admin" />
+          </TabsContent>
+
+          <TabsContent value="gallery">
+            <Gallery userRole="oem_admin" />
           </TabsContent>
         </Tabs>
       </main>
