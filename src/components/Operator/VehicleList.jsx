@@ -29,6 +29,7 @@ const VehicleList = ({ dealershipId, onVehicleSelect }) => {
         .order('created_at', { ascending: false });
 
       // If dealershipId is provided, filter by it
+      // This ensures operators only see vehicles from their dealership
       if (dealershipId) {
         query = query.eq('dealership_id', dealershipId);
       }

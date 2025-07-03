@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DealershipManagement from './DealershipManagement';
 import VehicleManagement from './VehicleManagement';
+import UserManagement from './UserManagement';
 import FrameManagement from './FrameManagement';
 import DeliveryReports from './DeliveryReports';
 
@@ -40,10 +41,11 @@ const OEMDashboard = ({ user, onLogout }) => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="inline-flex h-12 items-center justify-center bg-muted p-1 text-muted-foreground rounded-lg">
-            <TabsTrigger value="dealerships" className="px-6 py-2">Dealerships</TabsTrigger>
-            <TabsTrigger value="vehicles" className="px-6 py-2">Vehicles</TabsTrigger>
-            <TabsTrigger value="frames" className="px-6 py-2">Frames</TabsTrigger>
-            <TabsTrigger value="reports" className="px-6 py-2">Reports</TabsTrigger>
+            <TabsTrigger value="dealerships" className="px-4 py-2">Dealerships</TabsTrigger>
+            <TabsTrigger value="vehicles" className="px-4 py-2">Vehicles</TabsTrigger>
+            <TabsTrigger value="users" className="px-4 py-2">Users</TabsTrigger>
+            <TabsTrigger value="frames" className="px-4 py-2">Frames</TabsTrigger>
+            <TabsTrigger value="reports" className="px-4 py-2">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dealerships">
@@ -52,6 +54,10 @@ const OEMDashboard = ({ user, onLogout }) => {
 
           <TabsContent value="vehicles">
             <VehicleManagement />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <UserManagement />
           </TabsContent>
 
           <TabsContent value="frames">

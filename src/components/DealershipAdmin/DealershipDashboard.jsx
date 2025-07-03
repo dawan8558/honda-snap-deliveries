@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import VehicleView from './VehicleView';
+import UserManagement from './UserManagement';
 import FrameManagement from '../OEMAdmin/FrameManagement';
 import DeliveryReports from '../OEMAdmin/DeliveryReports';
 
@@ -37,14 +38,19 @@ const DealershipDashboard = ({ user, onLogout }) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-xl">
+          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
+            <TabsTrigger value="operators">Operators</TabsTrigger>
             <TabsTrigger value="frames">Frames</TabsTrigger>
             <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
           </TabsList>
 
           <TabsContent value="vehicles">
             <VehicleView dealershipId={user.dealership_id} />
+          </TabsContent>
+
+          <TabsContent value="operators">
+            <UserManagement dealershipId={user.dealership_id} />
           </TabsContent>
 
           <TabsContent value="frames">
