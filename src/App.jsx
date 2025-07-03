@@ -30,38 +30,50 @@ const App = () => {
         setSession(session);
         
         if (session?.user) {
+          console.log('Fetching profile for user:', session.user.id);
           try {
-            // Fetch user profile
-            const { data: profile, error } = await supabase
+            // Add timeout to prevent hanging
+            const profilePromise = supabase
               .from('profiles')
               .select('*')
               .eq('id', session.user.id)
               .single();
             
-          if (error) {
-            console.error('Error fetching profile:', error);
-            if (mounted) {
-              setUser(session.user);
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+            );
+            
+            const { data: profile, error } = await Promise.race([profilePromise, timeoutPromise]);
+            
+            if (error) {
+              console.error('Error fetching profile:', error);
+              // Set user without profile data
+              if (mounted) {
+                setUser(session.user);
+                setLoading(false);
+              }
+            } else if (profile && mounted) {
+              console.log('Profile fetched successfully:', profile);
+              setUser({
+                ...session.user,
+                ...profile
+              });
+              setLoading(false);
             }
-          } else if (profile && mounted) {
-            setUser({
-              ...session.user,
-              ...profile
-            });
-          } else if (mounted) {
-            // No profile found, use session user data
-            setUser(session.user);
-          }
           } catch (error) {
             console.error('Profile fetch failed:', error);
-            setUser(session.user);
+            // Fallback to user without profile
+            if (mounted) {
+              setUser(session.user);
+              setLoading(false);
+            }
           }
         } else {
-          setUser(null);
-        }
-        
-        if (mounted) {
-          setLoading(false);
+          console.log('No session, setting user to null');
+          if (mounted) {
+            setUser(null);
+            setLoading(false);
+          }
         }
       }
     );
