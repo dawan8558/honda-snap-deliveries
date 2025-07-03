@@ -25,6 +25,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const [compositeResults, setCompositeResults] = useState([]);
   const [currentStep, setCurrentStep] = useState('info'); // info, photo, frames, compose, preview, submit
   const [loading, setLoading] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   
   const fileInputRef = useRef(null);
   const { toast } = useToast();
@@ -35,6 +36,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
 
   const fetchAvailableFrames = async () => {
     try {
+      // Fetch frames for this vehicle model, including both global and dealership-specific frames
       const { data, error } = await supabase
         .from('frames')
         .select('*')
@@ -42,7 +44,16 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
 
       if (error) throw error;
 
+      console.log(`Found ${data?.length || 0} frames for model: ${vehicle.model}`);
       setAvailableFrames(data || []);
+      
+      if (!data || data.length === 0) {
+        toast({
+          title: "No frames available",
+          description: `No frames found for ${vehicle.model}. Please contact your administrator.`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error('Error fetching frames:', error);
       toast({
@@ -68,17 +79,66 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast({
+          variant: "destructive",
+          title: "Invalid file type",
+          description: "Please select an image file",
+        });
+        return;
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          variant: "destructive",
+          title: "File too large",
+          description: "Please select an image smaller than 10MB",
+        });
+        return;
+      }
+
       setCapturedPhotoFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setCapturedPhoto(e.target.result);
-        setCurrentStep('frames');
+        toast({
+          title: "Photo captured!",
+          description: "Review your photo and click 'Use This Photo' to continue",
+        });
+      };
+      reader.onerror = () => {
+        toast({
+          variant: "destructive",
+          title: "Error reading file",
+          description: "Please try again with a different image",
+        });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleCameraClick = () => {
+  const handleCameraClick = async () => {
+    setCapturing(true);
+    
+    // Try to use device camera API if available
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        // Request camera access for better mobile experience
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment' // Use back camera by default
+          } 
+        });
+        // Stop the stream immediately - we just wanted to request permission
+        stream.getTracks().forEach(track => track.stop());
+      } catch (error) {
+        console.log('Camera permission not granted, falling back to file input');
+      }
+    }
+    
+    setCapturing(false);
     fileInputRef.current?.click();
   };
 
@@ -138,26 +198,46 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
       for (let i = 0; i < framedPhotos.length; i++) {
         const photo = framedPhotos[i];
         if (photo.blob) {
-          const fileExt = 'png';
-          const fileName = `${vehicle.id}_frame_${photo.frameId}_${Date.now()}.${fileExt}`;
-          
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('delivery-photos')
-            .upload(fileName, photo.blob);
+          try {
+            const fileExt = 'png';
+            const fileName = `delivery_${vehicle.id}_${operator.id}_${Date.now()}_${i}.${fileExt}`;
+            
+            console.log(`Uploading image ${i + 1}/${framedPhotos.length}: ${fileName}`);
+            
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('delivery-photos')
+              .upload(fileName, photo.blob, {
+                cacheControl: '3600',
+                upsert: false
+              });
 
-          if (uploadError) throw uploadError;
+            if (uploadError) {
+              console.error('Upload error:', uploadError);
+              throw new Error(`Failed to upload image ${i + 1}: ${uploadError.message}`);
+            }
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('delivery-photos')
-            .getPublicUrl(fileName);
+            const { data: { publicUrl } } = supabase.storage
+              .from('delivery-photos')
+              .getPublicUrl(fileName);
 
-          uploadedUrls.push(publicUrl);
+            if (publicUrl) {
+              uploadedUrls.push(publicUrl);
+              console.log(`Image ${i + 1} uploaded successfully: ${publicUrl}`);
+            } else {
+              throw new Error(`Failed to get public URL for image ${i + 1}`);
+            }
+          } catch (error) {
+            console.error(`Error uploading image ${i + 1}:`, error);
+            throw error;
+          }
         }
       }
 
       if (uploadedUrls.length === 0) {
-        throw new Error('No images were successfully uploaded');
+        throw new Error('No images were successfully uploaded. Please try again.');
       }
+
+      console.log(`Successfully uploaded ${uploadedUrls.length} images`);
 
       // Save delivery record to database
       const { error: insertError } = await supabase
@@ -257,35 +337,90 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-center">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="camera"
-                onChange={handlePhotoCapture}
-                className="hidden"
-              />
-              <Button
-                onClick={handleCameraClick}
-                className="w-full h-32 bg-gray-100 hover:bg-gray-200 text-gray-600 flex flex-col items-center justify-center border-2 border-dashed border-gray-300"
-                variant="outline"
-              >
-                <Camera className="h-8 w-8 mb-2" />
-                <span>Take Photo</span>
-              </Button>
-            </div>
-            <div className="text-center text-sm text-muted-foreground">
-              or
-            </div>
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              variant="outline"
-              className="w-full"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload from Gallery
-            </Button>
+            {!capturedPhoto ? (
+              <>
+                {/* Live Camera Capture Option */}
+                <div className="text-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotoCapture}
+                    className="hidden"
+                  />
+                  <Button
+                    onClick={handleCameraClick}
+                    className="w-full h-32 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white flex flex-col items-center justify-center border-2 border-red-300"
+                  >
+                    <Camera className="h-8 w-8 mb-2" />
+                    <span className="font-semibold">Take Photo with Camera</span>
+                    <span className="text-xs text-red-100 mt-1">Recommended for best quality</span>
+                  </Button>
+                </div>
+                
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-300"></div>
+                  <span className="text-sm text-muted-foreground px-2">or</span>
+                  <div className="flex-1 h-px bg-gray-300"></div>
+                </div>
+                
+                {/* Upload from Gallery Option */}
+                <Button
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = handlePhotoCapture;
+                    input.click();
+                  }}
+                  variant="outline"
+                  className="w-full h-20 flex flex-col items-center justify-center"
+                >
+                  <Upload className="h-5 w-5 mb-1" />
+                  <span>Upload from Gallery</span>
+                </Button>
+                
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-xs text-blue-800">
+                    💡 <strong>Tip:</strong> For best results, ensure good lighting and include both the customer and vehicle in the photo.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Photo Preview */}
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Captured Photo:</p>
+                  <div className="relative">
+                    <img 
+                      src={capturedPhoto} 
+                      alt="Captured delivery" 
+                      className="w-full h-64 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      setCapturedPhoto(null);
+                      setCapturedPhotoFile(null);
+                    }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Retake Photo
+                  </Button>
+                  <Button
+                    onClick={() => setCurrentStep('frames')}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    Use This Photo
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
