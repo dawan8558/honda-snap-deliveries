@@ -63,11 +63,13 @@ const App = () => {
               }
             } else if (profile && mounted) {
               console.log('Profile fetched successfully:', profile);
+              console.log('Setting user and loading to false...');
               setUser({
                 ...session.user,
                 ...profile
               });
               setLoading(false);
+              console.log('User and loading state updated');
               isInitialized = true;
             }
           } catch (error) {
@@ -130,7 +132,7 @@ const App = () => {
   };
 
   if (loading) {
-    console.log('App is in loading state');
+    console.log('App is in loading state, loading value:', loading);
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
