@@ -39,12 +39,12 @@ const DealershipDashboard = ({ user, onLogout }) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-3xl">
-            <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-            <TabsTrigger value="operators">Operators</TabsTrigger>
-            <TabsTrigger value="frames">Frames</TabsTrigger>
-            <TabsTrigger value="deliveries">Deliveries</TabsTrigger>
-            <TabsTrigger value="gallery">Gallery</TabsTrigger>
+          <TabsList className="inline-flex h-12 items-center justify-center bg-muted p-1 text-muted-foreground rounded-lg">
+            <TabsTrigger value="vehicles" className="px-4 py-2">Vehicles</TabsTrigger>
+            <TabsTrigger value="operators" className="px-4 py-2">Operators</TabsTrigger>
+            <TabsTrigger value="frames" className="px-4 py-2">Frames</TabsTrigger>
+            <TabsTrigger value="deliveries" className="px-4 py-2">Deliveries</TabsTrigger>
+            <TabsTrigger value="gallery" className="px-4 py-2">Gallery</TabsTrigger>
           </TabsList>
 
           <TabsContent value="vehicles">
