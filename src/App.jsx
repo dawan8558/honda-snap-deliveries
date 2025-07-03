@@ -20,6 +20,7 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
@@ -27,67 +28,98 @@ const App = () => {
 
     console.log('Setting up auth listener...');
 
-    // Simple auth state handler
-    const handleAuthState = (event, session) => {
+    // Critical profile fetch with proper loading states
+    const fetchUserProfile = async (authUser) => {
+      if (!mounted) return;
+      
+      console.log('Fetching profile for user:', authUser.id);
+      setProfileLoading(true);
+      
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle();
+        
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Profile fetch error:', error);
+          setProfileLoading(false);
+          return;
+        }
+        
+        if (profile) {
+          console.log('Profile fetched successfully:', { role: profile.role, dealership_id: profile.dealership_id });
+          setUser({
+            ...authUser,
+            ...profile
+          });
+        } else {
+          console.warn('No profile found for user:', authUser.id);
+          setUser(authUser);
+        }
+        
+        setProfileLoading(false);
+      } catch (error) {
+        console.error('Profile fetch failed:', error.message);
+        if (mounted) {
+          setUser(authUser);
+          setProfileLoading(false);
+        }
+      }
+    };
+
+    // Improved auth state handler
+    const handleAuthState = async (event, session) => {
       if (!mounted) return;
       
       console.log('Auth state changed:', event, session?.user?.id);
       
       setSession(session);
-      setUser(session?.user || null);
+      
+      if (session?.user) {
+        // Wait for profile fetch to complete before setting loading to false
+        await fetchUserProfile(session.user);
+      } else {
+        setUser(null);
+        setProfileLoading(false);
+      }
+      
       setLoading(false);
       setAuthInitialized(true);
-
-      // Fetch profile in background if we have a user
-      if (session?.user && mounted) {
-        fetchUserProfile(session.user);
-      }
-    };
-
-    // Non-blocking profile fetch
-    const fetchUserProfile = async (user) => {
-      try {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-        
-        if (mounted && profile && !error) {
-          console.log('Profile fetched, updating user data');
-          setUser(prevUser => ({
-            ...prevUser,
-            ...profile
-          }));
-        }
-      } catch (error) {
-        console.log('Profile fetch failed (non-critical):', error.message);
-      }
     };
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthState);
 
-    // Simple initial session check
+    // Improved initial session check
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (mounted) {
-          if (error) {
-            console.error('Session check error:', error);
-          }
-          
-          setSession(session);
-          setUser(session?.user || null);
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Session check error:', error);
           setLoading(false);
           setAuthInitialized(true);
-
-          // Fetch profile in background if we have a user
-          if (session?.user) {
-            fetchUserProfile(session.user);
-          }
+          return;
         }
+        
+        setSession(session);
+        
+        if (session?.user) {
+          // Wait for profile fetch to complete during initialization
+          await fetchUserProfile(session.user);
+        } else {
+          setUser(null);
+          setProfileLoading(false);
+        }
+        
+        setLoading(false);
+        setAuthInitialized(true);
       } catch (error) {
         console.error('Auth initialization failed:', error);
         if (mounted) {
@@ -129,11 +161,28 @@ const App = () => {
   }
 
   const ProtectedRoute = ({ children, allowedRoles }) => {
-    console.log('ProtectedRoute check:', { user, allowedRoles, userRole: user?.role });
+    console.log('ProtectedRoute check:', { 
+      user: user?.id, 
+      userRole: user?.role, 
+      allowedRoles, 
+      profileLoading 
+    });
+    
+    // Wait for profile loading to complete before making routing decisions
+    if (profileLoading) {
+      console.log('Profile still loading, showing loading state');
+      return <LoadingPage message="Loading user profile..." />;
+    }
     
     if (!user) {
       console.log('No user, redirecting to login');
       return <Navigate to="/login" replace />;
+    }
+    
+    // Check if user has a role (profile was loaded successfully)
+    if (!user.role) {
+      console.log('User has no role, profile may not be loaded');
+      return <LoadingPage message="Loading user permissions..." />;
     }
     
     if (allowedRoles && !allowedRoles.includes(user.role)) {

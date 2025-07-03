@@ -27,15 +27,24 @@ const Login = ({ onLogin }) => {
 
         if (error) throw error;
 
-        // Fetch user profile
+        // Fetch user profile with proper error handling
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', data.user.id)
-          .single();
+          .maybeSingle();
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error('Profile fetch error during login:', profileError);
+          throw new Error('Failed to load user profile. Please try again.');
+        }
 
+        if (!profile) {
+          throw new Error('User profile not found. Please contact support.');
+        }
+
+        console.log('Login successful, profile loaded:', { role: profile.role });
+        
         onLogin({
           ...data.user,
           ...profile
