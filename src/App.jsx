@@ -24,28 +24,21 @@ const App = () => {
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId;
 
     console.log('Setting up auth listener...');
 
-    // Simple, fast auth state handler - no blocking operations
+    // Simple auth state handler
     const handleAuthState = (event, session) => {
       if (!mounted) return;
       
       console.log('Auth state changed:', event, session?.user?.id);
-      
-      // Clear timeout since we got a response
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
       
       setSession(session);
       setUser(session?.user || null);
       setLoading(false);
       setAuthInitialized(true);
 
-      // Fetch profile in background - don't block auth flow
+      // Fetch profile in background if we have a user
       if (session?.user && mounted) {
         fetchUserProfile(session.user);
       }
@@ -58,7 +51,7 @@ const App = () => {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (mounted && profile && !error) {
           console.log('Profile fetched, updating user data');
@@ -72,31 +65,19 @@ const App = () => {
       }
     };
 
-    // Set up auth state listener first
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthState);
 
-    // Fast initial session check
+    // Simple initial session check
     const initializeAuth = async () => {
       try {
-        console.log('Quick session check...');
-        
-        // Set a much shorter timeout for initial check
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 10000)
-        );
-
-        const { data: { session }, error } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]);
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         if (mounted) {
           if (error) {
             console.error('Session check error:', error);
           }
           
-          // Always initialize quickly, let auth listener handle the rest
           setSession(session);
           setUser(session?.user || null);
           setLoading(false);
@@ -108,7 +89,7 @@ const App = () => {
           }
         }
       } catch (error) {
-        console.error('Auth initialization failed or timed out:', error);
+        console.error('Auth initialization failed:', error);
         if (mounted) {
           setLoading(false);
           setAuthInitialized(true);
@@ -116,27 +97,15 @@ const App = () => {
       }
     };
 
-    // Longer fallback timeout to allow session restoration
-    timeoutId = setTimeout(() => {
-      console.log('Auth timeout - forcing app to load without auth');
-      if (mounted && !authInitialized) {
-        setLoading(false);
-        setAuthInitialized(true);
-      }
-    }, 10000);
-
     // Start initialization
     initializeAuth();
 
     return () => {
       console.log('Cleaning up auth listener');
       mounted = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
       subscription?.unsubscribe?.();
     };
-  }, []); // Remove authInitialized dependency to prevent re-runs
+  }, []);
 
   const handleLogin = (userData) => {
     console.log('handleLogin called with:', userData);
