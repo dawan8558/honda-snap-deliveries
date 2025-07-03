@@ -129,14 +129,19 @@ const App = () => {
   }
 
   const ProtectedRoute = ({ children, allowedRoles }) => {
+    console.log('ProtectedRoute check:', { user, allowedRoles, userRole: user?.role });
+    
     if (!user) {
+      console.log('No user, redirecting to login');
       return <Navigate to="/login" replace />;
     }
     
     if (allowedRoles && !allowedRoles.includes(user.role)) {
+      console.log('User role not allowed:', { userRole: user.role, allowedRoles });
       return <Navigate to="/unauthorized" replace />;
     }
     
+    console.log('Access granted for user:', user.role);
     return children;
   };
 
