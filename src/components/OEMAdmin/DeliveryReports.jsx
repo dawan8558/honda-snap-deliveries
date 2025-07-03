@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+console.log('DeliveryReports: Component loaded');
+
 const DeliveryReports = ({ userRole }) => {
   console.log('DeliveryReports component rendering, userRole:', userRole);
   

@@ -8,6 +8,7 @@ import FrameManagement from './FrameManagement';
 import DeliveryReports from './DeliveryReports';
 
 const OEMDashboard = ({ user, onLogout }) => {
+  console.log('Rendering OEM Dashboard');
   const [activeTab, setActiveTab] = useState('dealerships');
 
   return (

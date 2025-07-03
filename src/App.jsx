@@ -168,12 +168,12 @@ const App = () => {
   }
 
   const renderUserInterface = () => {
-    // Development mode - bypass auth
+    // Development mode - use real user from auth logs
     const devUser = {
-      id: 'dev-user',
-      email: 'dev@example.com',
+      id: 'a153e4f8-ce0f-4f91-aef8-a29e5bad8d65',
+      email: 'danish@placentek.com',
       role: 'oem_admin',
-      name: 'Dev User'
+      name: 'Danish (Dev Mode)'
     };
     
     return <OEMDashboard user={devUser} onLogout={() => console.log('Dev logout')} />;
