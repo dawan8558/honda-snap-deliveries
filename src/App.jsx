@@ -12,6 +12,7 @@ import OperatorApp from "./components/Operator/OperatorApp";
 const queryClient = new QueryClient();
 
 const App = () => {
+  console.log('App component rendering');
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +67,7 @@ const App = () => {
   };
 
   if (loading) {
+    console.log('App is in loading state');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -79,7 +81,9 @@ const App = () => {
   }
 
   const renderUserInterface = () => {
+    console.log('renderUserInterface called, user:', user);
     if (!user) {
+      console.log('No user found, rendering Login component');
       return <Login onLogin={handleLogin} />;
     }
 
