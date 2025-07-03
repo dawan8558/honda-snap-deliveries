@@ -93,6 +93,8 @@ const DeliveryReports = ({ userRole }) => {
   if (loading) {
     return <div className="text-center py-8">Loading delivery reports...</div>;
   }
+
+  return (
     <div className="space-y-6">
       {/* Filters */}
       <Card>
