@@ -37,22 +37,33 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
 
   const fetchAvailableFrames = async () => {
     try {
+      console.log(`Fetching frames for vehicle model: ${vehicle.model}`);
+      
       // Fetch frames for this vehicle model, including both global and dealership-specific frames
       const { data, error } = await supabase
         .from('frames')
         .select('*')
         .eq('model', vehicle.model);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error fetching frames:', error);
+        throw error;
+      }
 
-      console.log(`Found ${data?.length || 0} frames for model: ${vehicle.model}`);
+      console.log(`Found ${data?.length || 0} frames for model: ${vehicle.model}`, data);
       setAvailableFrames(data || []);
       
       if (!data || data.length === 0) {
+        console.warn(`No frames found for model: ${vehicle.model}`);
         toast({
           title: "No frames available",
           description: `No frames found for ${vehicle.model}. Please contact your administrator.`,
           variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Frames loaded",
+          description: `Found ${data.length} frame(s) for ${vehicle.model}`,
         });
       }
     } catch (error) {
@@ -436,7 +447,10 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
                     Retake Photo
                   </Button>
                   <Button
-                    onClick={() => setCurrentStep('frames')}
+                    onClick={() => {
+                      console.log('Moving to frames step, available frames:', availableFrames.length);
+                      setCurrentStep('frames');
+                    }}
                     className="flex-1 bg-green-600 hover:bg-green-700"
                   >
                     Use This Photo
@@ -473,42 +487,57 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
           </Card>
 
           <div className="grid grid-cols-1 gap-3">
-            {availableFrames.map((frame) => {
-              const isSelected = selectedFrames.find(f => f.id === frame.id);
-              return (
-                <Card 
-                  key={frame.id} 
-                  className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
-                  onClick={() => handleFrameSelect(frame)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center">
-                        <img 
-                          src={frame.image_url} 
-                          alt={frame.name}
-                          className="w-full h-full object-cover rounded-lg"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
+            {availableFrames.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p className="text-muted-foreground mb-4">No frames available for {vehicle.model}</p>
+                  <Button onClick={fetchAvailableFrames} variant="outline">
+                    Retry Loading Frames
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              availableFrames.map((frame) => {
+                const isSelected = selectedFrames.find(f => f.id === frame.id);
+                return (
+                  <Card 
+                    key={frame.id} 
+                    className={`cursor-pointer transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+                    onClick={() => handleFrameSelect(frame)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={frame.image_url} 
+                            alt={frame.name}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              console.error('Failed to load frame image:', frame.image_url);
+                              e.target.style.display = 'none';
+                            }}
+                            onLoad={() => {
+                              console.log('Successfully loaded frame image:', frame.image_url);
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-medium">{frame.name}</h3>
+                          <Badge variant="outline" className="text-xs mt-1">
+                            {frame.model}
+                          </Badge>
+                        </div>
+                        <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                          {isSelected && (
+                            <div className="w-3 h-3 bg-primary rounded-full"></div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-medium">{frame.name}</h3>
-                        <Badge variant="outline" className="text-xs mt-1">
-                          {frame.model}
-                        </Badge>
-                      </div>
-                      <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                        {isSelected && (
-                          <div className="w-3 h-3 bg-primary rounded-full"></div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
 
           <Button onClick={handleFramesNext} className="w-full" disabled={selectedFrames.length === 0}>
