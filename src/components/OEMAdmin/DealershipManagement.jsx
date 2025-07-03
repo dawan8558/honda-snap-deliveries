@@ -1,19 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import DealershipEdit from './DealershipEdit';
 
 const DealershipManagement = () => {
   const [dealerships, setDealerships] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newDealership, setNewDealership] = useState({ name: '', city: '' });
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingDealership, setEditingDealership] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,32 +37,29 @@ const DealershipManagement = () => {
     }
   };
 
-  const handleAddDealership = async () => {
-    if (!newDealership.name || !newDealership.city) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please fill in all fields",
-      });
+  const handleEditDealership = (dealership) => {
+    setEditingDealership(dealership);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteDealership = async (dealershipId) => {
+    if (!confirm('Are you sure you want to delete this dealership? This will also delete all associated vehicles and deliveries.')) {
       return;
     }
-
-    setAdding(true);
 
     try {
       const { error } = await supabase
         .from('dealerships')
-        .insert([newDealership]);
+        .delete()
+        .eq('id', dealershipId);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Dealership added successfully",
+        description: "Dealership deleted successfully",
       });
 
-      setNewDealership({ name: '', city: '' });
-      setIsDialogOpen(false);
       fetchDealerships();
     } catch (error) {
       toast({
@@ -73,9 +67,11 @@ const DealershipManagement = () => {
         description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setAdding(false);
     }
+  };
+
+  const handleDialogSuccess = () => {
+    fetchDealerships();
   };
 
   if (loading) {
@@ -91,46 +87,15 @@ const DealershipManagement = () => {
               <CardTitle>Dealership Management</CardTitle>
               <CardDescription>Manage Honda dealerships across the country</CardDescription>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="honda">Add Dealership</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Dealership</DialogTitle>
-                  <DialogDescription>
-                    Enter the details for the new dealership.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="name" className="text-right">Name</Label>
-                    <Input
-                      id="name"
-                      value={newDealership.name}
-                      onChange={(e) => setNewDealership({ ...newDealership, name: e.target.value })}
-                      className="col-span-3"
-                      placeholder="Honda Dealership Name"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="city" className="text-right">City</Label>
-                    <Input
-                      id="city"
-                      value={newDealership.city}
-                      onChange={(e) => setNewDealership({ ...newDealership, city: e.target.value })}
-                      className="col-span-3"
-                      placeholder="City"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleAddDealership} disabled={adding}>
-                    {adding ? 'Adding...' : 'Add Dealership'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button 
+              className="bg-primary hover:bg-primary-hover"
+              onClick={() => {
+                setEditingDealership(null);
+                setIsEditDialogOpen(true);
+              }}
+            >
+              Add Dealership
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -150,7 +115,22 @@ const DealershipManagement = () => {
                   <TableCell>{dealership.name}</TableCell>
                   <TableCell>{dealership.city}</TableCell>
                   <TableCell>
-                    <Button variant="outline" size="sm">Edit</Button>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditDealership(dealership)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteDealership(dealership.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -163,6 +143,13 @@ const DealershipManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      <DealershipEdit
+        dealership={editingDealership}
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        onSuccess={handleDialogSuccess}
+      />
     </div>
   );
 };

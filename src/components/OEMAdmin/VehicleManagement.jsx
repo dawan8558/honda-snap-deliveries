@@ -32,6 +32,8 @@ const VehicleManagement = () => {
     relationship_id: ''
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState(null);
   const [adding, setAdding] = useState(false);
   const { toast } = useToast();
 
@@ -117,8 +119,7 @@ const VehicleManagement = () => {
         description: "Vehicle added successfully",
       });
 
-      setNewVehicle({ model: '', variant: '', color: '', dealership_id: '', relationship_id: '' });
-      setIsDialogOpen(false);
+      resetForm();
       fetchVehicles();
     } catch (error) {
       toast({
@@ -129,6 +130,98 @@ const VehicleManagement = () => {
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleEditVehicle = (vehicle) => {
+    setEditingVehicle(vehicle);
+    setNewVehicle({
+      model: vehicle.model,
+      variant: vehicle.variant,
+      color: vehicle.color,
+      dealership_id: vehicle.dealership_id,
+      relationship_id: vehicle.relationship_id || ''
+    });
+    setIsEditMode(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleUpdateVehicle = async () => {
+    if (!newVehicle.model || !newVehicle.variant || !newVehicle.color || !newVehicle.dealership_id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please fill in all required fields",
+      });
+      return;
+    }
+
+    setAdding(true);
+
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({
+          model: newVehicle.model,
+          variant: newVehicle.variant,
+          color: newVehicle.color,
+          dealership_id: newVehicle.dealership_id,
+          relationship_id: newVehicle.relationship_id || null
+        })
+        .eq('id', editingVehicle.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Vehicle updated successfully",
+      });
+
+      resetForm();
+      fetchVehicles();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId) => {
+    if (!confirm('Are you sure you want to delete this vehicle? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .delete()
+        .eq('id', vehicleId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Vehicle deleted successfully",
+      });
+
+      fetchVehicles();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const resetForm = () => {
+    setNewVehicle({ model: '', variant: '', color: '', dealership_id: '', relationship_id: '' });
+    setIsDialogOpen(false);
+    setIsEditMode(false);
+    setEditingVehicle(null);
   };
 
   if (loading) {
@@ -144,15 +237,15 @@ const VehicleManagement = () => {
               <CardTitle>Vehicle Management</CardTitle>
               <CardDescription>Manage vehicles across all dealerships</CardDescription>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsDialogOpen(open); }}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary-hover">Add Vehicle</Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Add New Vehicle</DialogTitle>
+                  <DialogTitle>{isEditMode ? 'Edit Vehicle' : 'Add New Vehicle'}</DialogTitle>
                   <DialogDescription>
-                    Enter the vehicle details.
+                    {isEditMode ? 'Update the vehicle details.' : 'Enter the vehicle details.'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -217,8 +310,8 @@ const VehicleManagement = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddVehicle} disabled={adding}>
-                    {adding ? 'Adding...' : 'Add Vehicle'}
+                  <Button onClick={isEditMode ? handleUpdateVehicle : handleAddVehicle} disabled={adding}>
+                    {adding ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Vehicle' : 'Add Vehicle')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -236,6 +329,7 @@ const VehicleManagement = () => {
                 <TableHead>Dealership</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Relationship ID</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -252,6 +346,24 @@ const VehicleManagement = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>{vehicle.relationship_id || '-'}</TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleEditVehicle(vehicle)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteVehicle(vehicle.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

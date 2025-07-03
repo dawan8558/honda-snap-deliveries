@@ -32,6 +32,8 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingFrame, setEditingFrame] = useState(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -123,8 +125,7 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
         description: "Frame uploaded successfully",
       });
 
-      setNewFrame({ name: '', model: '', image_file: null, usePreset: false });
-      setIsDialogOpen(false);
+      resetForm();
       fetchFrames();
     } catch (error) {
       toast({
@@ -135,6 +136,53 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
     } finally {
       setAdding(false);
     }
+  };
+
+  const handleEditFrame = (frame) => {
+    setEditingFrame(frame);
+    setNewFrame({
+      name: frame.name,
+      model: frame.model,
+      image_file: null,
+      usePreset: false
+    });
+    setIsEditMode(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleDeleteFrame = async (frameId) => {
+    if (!confirm('Are you sure you want to delete this frame? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('frames')
+        .delete()
+        .eq('id', frameId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Frame deleted successfully",
+      });
+
+      fetchFrames();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const resetForm = () => {
+    setNewFrame({ name: '', model: '', image_file: null, usePreset: false });
+    setIsDialogOpen(false);
+    setIsEditMode(false);
+    setEditingFrame(null);
   };
 
   const handleFileUpload = (e) => {
@@ -168,15 +216,15 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
               <CardTitle>Frame Management</CardTitle>
               <CardDescription>Upload and manage photo frames for vehicle models</CardDescription>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsDialogOpen(open); }}>
               <DialogTrigger asChild>
                 <Button className="bg-primary hover:bg-primary-hover">Upload Frame</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Upload New Frame</DialogTitle>
+                  <DialogTitle>{isEditMode ? 'Edit Frame' : 'Upload New Frame'}</DialogTitle>
                   <DialogDescription>
-                    Upload a PNG frame template for a specific car model.
+                    {isEditMode ? 'Update the frame details.' : 'Upload a PNG frame template for a specific car model.'}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
@@ -243,7 +291,7 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                 </div>
                 <DialogFooter>
                   <Button onClick={handleAddFrame} disabled={adding}>
-                    {adding ? 'Uploading...' : 'Upload Frame'}
+                    {adding ? (isEditMode ? 'Updating...' : 'Uploading...') : (isEditMode ? 'Update Frame' : 'Upload Frame')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -272,9 +320,14 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                       {frame.dealership_name}
                     </Badge>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full">
-                    Edit
-                  </Button>
+                  <div className="flex space-x-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEditFrame(frame)}>
+                      Edit
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => handleDeleteFrame(frame.id)}>
+                      Delete
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}

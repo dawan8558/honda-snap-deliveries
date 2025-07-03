@@ -168,15 +168,21 @@ const App = () => {
   }
 
   const renderUserInterface = () => {
-    // Development mode - use real user from auth logs
-    const devUser = {
-      id: 'a153e4f8-ce0f-4f91-aef8-a29e5bad8d65',
-      email: 'danish@placentek.com',
-      role: 'oem_admin',
-      name: 'Danish (Dev Mode)'
-    };
-    
-    return <OEMDashboard user={devUser} onLogout={() => console.log('Dev logout')} />;
+    if (!user) {
+      return <Login onLogin={handleLogin} />;
+    }
+
+    // Route based on user role
+    switch (user.role) {
+      case 'oem_admin':
+        return <OEMDashboard user={user} onLogout={handleLogout} />;
+      case 'dealership_admin':
+        return <DealershipDashboard user={user} onLogout={handleLogout} />;
+      case 'operator':
+        return <OperatorApp user={user} onLogout={handleLogout} />;
+      default:
+        return <Login onLogin={handleLogin} />;
+    }
   };
 
   return (
