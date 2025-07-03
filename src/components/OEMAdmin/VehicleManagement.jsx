@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,19 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const VehicleManagement = () => {
-  const [vehicles, setVehicles] = useState([
-    { id: 1, model: 'City', variant: 'Aspire', color: 'Pearl White', dealership_id: 1, dealership_name: 'Honda Karachi Central', is_delivered: false, relationship_id: 'REL001' },
-    { id: 2, model: 'Civic', variant: 'RS', color: 'Metallic Black', dealership_id: 1, dealership_name: 'Honda Karachi Central', is_delivered: true, relationship_id: 'REL002' },
-    { id: 3, model: 'City', variant: 'Aspire', color: 'Brilliant Red', dealership_id: 2, dealership_name: 'Honda Lahore Main', is_delivered: false, relationship_id: 'REL003' }
-  ]);
-
-  const dealerships = [
-    { id: 1, name: 'Honda Karachi Central' },
-    { id: 2, name: 'Honda Lahore Main' },
-    { id: 3, name: 'Honda Islamabad' }
-  ];
+  const [vehicles, setVehicles] = useState([]);
+  const [dealerships, setDealerships] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const models = ['City', 'Civic', 'Accord', 'HR-V', 'CR-V'];
   const variants = {
@@ -39,9 +32,62 @@ const VehicleManagement = () => {
     relationship_id: ''
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const { toast } = useToast();
 
-  const handleAddVehicle = () => {
+  useEffect(() => {
+    fetchVehicles();
+    fetchDealerships();
+  }, []);
+
+  const fetchVehicles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          *,
+          dealerships:dealership_id (name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const vehiclesWithDealershipName = data?.map(vehicle => ({
+        ...vehicle,
+        dealership_name: vehicle.dealerships?.name || 'Unknown'
+      })) || [];
+
+      setVehicles(vehiclesWithDealershipName);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch vehicles",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDealerships = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dealerships')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setDealerships(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch dealerships",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleAddVehicle = async () => {
     if (!newVehicle.model || !newVehicle.variant || !newVehicle.color || !newVehicle.dealership_id) {
       toast({
         variant: "destructive",
@@ -51,24 +97,43 @@ const VehicleManagement = () => {
       return;
     }
 
-    const dealership = dealerships.find(d => d.id === parseInt(newVehicle.dealership_id));
-    const vehicle = {
-      id: vehicles.length + 1,
-      ...newVehicle,
-      dealership_id: parseInt(newVehicle.dealership_id),
-      dealership_name: dealership.name,
-      is_delivered: false
-    };
+    setAdding(true);
 
-    setVehicles([...vehicles, vehicle]);
-    setNewVehicle({ model: '', variant: '', color: '', dealership_id: '', relationship_id: '' });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "Success",
-      description: "Vehicle added successfully",
-    });
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .insert([{
+          model: newVehicle.model,
+          variant: newVehicle.variant,
+          color: newVehicle.color,
+          dealership_id: newVehicle.dealership_id,
+          relationship_id: newVehicle.relationship_id || null
+        }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Vehicle added successfully",
+      });
+
+      setNewVehicle({ model: '', variant: '', color: '', dealership_id: '', relationship_id: '' });
+      setIsDialogOpen(false);
+      fetchVehicles();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
   };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading vehicles...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -99,7 +164,7 @@ const VehicleManagement = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {dealerships.map((dealership) => (
-                          <SelectItem key={dealership.id} value={dealership.id.toString()}>
+                          <SelectItem key={dealership.id} value={dealership.id}>
                             {dealership.name}
                           </SelectItem>
                         ))}
@@ -152,7 +217,9 @@ const VehicleManagement = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddVehicle}>Add Vehicle</Button>
+                  <Button onClick={handleAddVehicle} disabled={adding}>
+                    {adding ? 'Adding...' : 'Add Vehicle'}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>

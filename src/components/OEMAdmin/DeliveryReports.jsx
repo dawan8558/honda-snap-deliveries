@@ -1,50 +1,84 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const DeliveryReports = ({ userRole }) => {
-  const [deliveries] = useState([
-    {
-      id: 1,
-      vehicle_id: 2,
-      vehicle_model: 'Civic RS',
-      vehicle_color: 'Metallic Black',
-      operator_name: 'Ahmed Ali',
-      dealership_name: 'Honda Karachi Central',
-      customer_name: 'John Doe',
-      whatsapp_number: '+923001234567',
-      framed_image_urls: ['/placeholder-delivery.jpg'],
-      consent_to_share: true,
-      created_at: '2024-01-15T10:30:00Z'
-    },
-    {
-      id: 2,
-      vehicle_id: 1,
-      vehicle_model: 'City Aspire',
-      vehicle_color: 'Pearl White',
-      operator_name: 'Sara Khan',
-      dealership_name: 'Honda Lahore Main',
-      customer_name: 'Jane Smith',
-      whatsapp_number: '+923009876543',
-      framed_image_urls: ['/placeholder-delivery.jpg', '/placeholder-delivery2.jpg'],
-      consent_to_share: false,
-      created_at: '2024-01-14T14:20:00Z'
-    }
-  ]);
-
+  const [deliveries, setDeliveries] = useState([]);
+  const [dealerships, setDealerships] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [filters, setFilters] = useState({
     dealership: '',
     model: '',
     date: ''
   });
+  const { toast } = useToast();
 
-  const dealerships = ['Honda Karachi Central', 'Honda Lahore Main', 'Honda Islamabad'];
   const models = ['City', 'Civic', 'Accord', 'HR-V', 'CR-V'];
+
+  useEffect(() => {
+    fetchDeliveries();
+    fetchDealerships();
+  }, [userRole]);
+
+  const fetchDeliveries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('deliveries')
+        .select(`
+          *,
+          vehicles!inner (
+            id,
+            model,
+            variant,
+            color,
+            dealerships!inner (name)
+          ),
+          profiles!deliveries_operator_id_fkey (name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const deliveriesWithDetails = data?.map(delivery => ({
+        ...delivery,
+        vehicle_model: `${delivery.vehicles.model} ${delivery.vehicles.variant}`,
+        vehicle_color: delivery.vehicles.color,
+        dealership_name: delivery.vehicles.dealerships.name,
+        operator_name: delivery.profiles?.name || 'Unknown'
+      })) || [];
+
+      setDeliveries(deliveriesWithDetails);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch deliveries",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDealerships = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dealerships')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setDealerships(data || []);
+    } catch (error) {
+      console.error('Error fetching dealerships:', error);
+    }
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -56,7 +90,9 @@ const DeliveryReports = ({ userRole }) => {
     });
   };
 
-  return (
+  if (loading) {
+    return <div className="text-center py-8">Loading delivery reports...</div>;
+  }
     <div className="space-y-6">
       {/* Filters */}
       <Card>
@@ -74,7 +110,7 @@ const DeliveryReports = ({ userRole }) => {
                 <SelectContent>
                   <SelectItem value="">All dealerships</SelectItem>
                   {dealerships.map((dealership) => (
-                    <SelectItem key={dealership} value={dealership}>{dealership}</SelectItem>
+                    <SelectItem key={dealership.id} value={dealership.name}>{dealership.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

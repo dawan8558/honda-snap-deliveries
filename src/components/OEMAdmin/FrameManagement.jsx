@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,13 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const FrameManagement = ({ userRole, dealershipId = null }) => {
-  const [frames, setFrames] = useState([
-    { id: 1, name: 'Honda City Red Frame', model: 'City', image_url: '/placeholder-frame.png', uploaded_by: 'oem_admin', dealership_id: null, dealership_name: 'Global (OEM)' },
-    { id: 2, name: 'Civic Sport Frame', model: 'Civic', image_url: '/placeholder-frame.png', uploaded_by: 'oem_admin', dealership_id: null, dealership_name: 'Global (OEM)' },
-    { id: 3, name: 'Karachi City Frame', model: 'City', image_url: '/placeholder-frame.png', uploaded_by: 'dealership_admin', dealership_id: 1, dealership_name: 'Honda Karachi Central' }
-  ]);
+  const [frames, setFrames] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const models = ['City', 'Civic', 'Accord', 'HR-V', 'CR-V'];
   
@@ -23,9 +21,45 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
     image_file: null
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const { toast } = useToast();
 
-  const handleAddFrame = () => {
+  useEffect(() => {
+    fetchFrames();
+  }, [userRole, dealershipId]);
+
+  const fetchFrames = async () => {
+    try {
+      let query = supabase
+        .from('frames')
+        .select(`
+          *,
+          dealerships:dealership_id (name)
+        `)
+        .order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const framesWithDealershipName = data?.map(frame => ({
+        ...frame,
+        dealership_name: frame.dealerships?.name || 'Global (OEM)'
+      })) || [];
+
+      setFrames(framesWithDealershipName);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch frames",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddFrame = async () => {
     if (!newFrame.name || !newFrame.model || !newFrame.image_file) {
       toast({
         variant: "destructive",
@@ -35,24 +69,53 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
       return;
     }
 
-    const frame = {
-      id: frames.length + 1,
-      name: newFrame.name,
-      model: newFrame.model,
-      image_url: URL.createObjectURL(newFrame.image_file),
-      uploaded_by: userRole,
-      dealership_id: userRole === 'dealership_admin' ? dealershipId : null,
-      dealership_name: userRole === 'dealership_admin' ? 'Current Dealership' : 'Global (OEM)'
-    };
+    setAdding(true);
 
-    setFrames([...frames, frame]);
-    setNewFrame({ name: '', model: '', image_file: null });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "Success",
-      description: "Frame uploaded successfully",
-    });
+    try {
+      // Upload image to Supabase Storage
+      const fileExt = newFrame.image_file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('frames')
+        .upload(fileName, newFrame.image_file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('frames')
+        .getPublicUrl(fileName);
+
+      // Insert frame record
+      const { error: insertError } = await supabase
+        .from('frames')
+        .insert([{
+          name: newFrame.name,
+          model: newFrame.model,
+          image_url: publicUrl,
+          uploaded_by: userRole === 'dealership_admin' ? dealershipId : null,
+          dealership_id: userRole === 'dealership_admin' ? dealershipId : null
+        }]);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Success",
+        description: "Frame uploaded successfully",
+      });
+
+      setNewFrame({ name: '', model: '', image_file: null });
+      setIsDialogOpen(false);
+      fetchFrames();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleFileUpload = (e) => {
@@ -72,6 +135,10 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
   const filteredFrames = userRole === 'dealership_admin' 
     ? frames.filter(frame => frame.dealership_id === dealershipId || frame.dealership_id === null)
     : frames;
+
+  if (loading) {
+    return <div className="text-center py-8">Loading frames...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -132,7 +199,9 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddFrame}>Upload Frame</Button>
+                  <Button onClick={handleAddFrame} disabled={adding}>
+                    {adding ? 'Uploading...' : 'Upload Frame'}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
