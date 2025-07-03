@@ -5,4 +5,4 @@ import './index.css'
 console.log('Main.tsx loaded - about to render App');
 console.log('App component:', App);
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")).render(<App />);
