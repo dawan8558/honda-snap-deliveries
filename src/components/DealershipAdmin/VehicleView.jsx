@@ -28,8 +28,7 @@ const VehicleView = ({ dealershipId }) => {
           deliveries (
             id,
             operator_id,
-            created_at,
-            profiles:operator_id (name)
+            created_at
           )
         `)
         .eq('dealership_id', dealershipId)
