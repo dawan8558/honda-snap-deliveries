@@ -4,9 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Login = ({ onLogin }) => {
-  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -15,28 +19,55 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      // Mock login - in real app this would use Supabase auth
-      const mockUsers = {
-        'admin@honda.com': { role: 'oem_admin', name: 'OEM Admin', dealership_id: null },
-        'dealer@honda.com': { role: 'dealership_admin', name: 'Dealer Admin', dealership_id: 1 },
-        'operator@honda.com': { role: 'operator', name: 'Operator', dealership_id: 1 }
-      };
+      if (isLogin) {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      const user = mockUsers[credentials.email];
-      if (user && credentials.password === 'password') {
-        onLogin(user);
+        if (error) throw error;
+
+        // Fetch user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        onLogin({
+          ...data.user,
+          ...profile
+        });
+
         toast({
-          title: "Login successful",
-          description: `Welcome ${user.name}!`,
+          title: "Success",
+          description: "Logged in successfully!",
         });
       } else {
-        throw new Error('Invalid credentials');
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name },
+            emailRedirectTo: `${window.location.origin}/`
+          }
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Account created! Please check your email for verification.",
+        });
+        setIsLogin(true);
       }
     } catch (error) {
       toast({
-        variant: "destructive",
-        title: "Login failed",
+        title: "Error",
         description: error.message,
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -44,28 +75,43 @@ const Login = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-gray-100 p-4">
+    <div className="min-h-screen bg-gradient-honda flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-bold text-xl">H</span>
           </div>
-          <CardTitle className="text-2xl font-bold">Honda Delivery</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            {isLogin ? 'Welcome Back' : 'Create Account'}
+          </CardTitle>
           <CardDescription>
-            Sign in to your account to continue
+            {isLogin ? 'Sign in to Honda Delivery Photo App' : 'Join Honda Delivery Photo App'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required={!isLogin}
+                  placeholder="Enter your full name"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
-                value={credentials.email}
-                onChange={(e) => setCredentials({ ...credentials, email: e.target.value })}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
+                placeholder="Enter your email"
               />
             </div>
             <div className="space-y-2">
@@ -73,25 +119,30 @@ const Login = ({ onLogin }) => {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
-                value={credentials.password}
-                onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
+                placeholder="Enter your password"
               />
             </div>
             <Button 
               type="submit" 
-              className="w-full bg-primary hover:bg-primary-hover" 
+              className="w-full" 
+              variant="honda"
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Loading...' : (isLogin ? 'Sign In' : 'Create Account')}
             </Button>
           </form>
-          <div className="mt-6 text-xs text-muted-foreground text-center">
-            <p>Demo credentials:</p>
-            <p>OEM Admin: admin@honda.com / password</p>
-            <p>Dealer Admin: dealer@honda.com / password</p>
-            <p>Operator: operator@honda.com / password</p>
+          
+          <div className="mt-4 text-center">
+            <Button
+              variant="ghost"
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-sm"
+            >
+              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+            </Button>
           </div>
         </CardContent>
       </Card>

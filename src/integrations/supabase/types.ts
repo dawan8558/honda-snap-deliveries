@@ -9,16 +9,197 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      dealerships: {
+        Row: {
+          city: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      deliveries: {
+        Row: {
+          consent_to_share: boolean
+          created_at: string
+          customer_name: string
+          framed_image_urls: string[]
+          id: string
+          operator_id: string
+          vehicle_id: string
+          whatsapp_number: string
+        }
+        Insert: {
+          consent_to_share?: boolean
+          created_at?: string
+          customer_name: string
+          framed_image_urls?: string[]
+          id?: string
+          operator_id: string
+          vehicle_id: string
+          whatsapp_number: string
+        }
+        Update: {
+          consent_to_share?: boolean
+          created_at?: string
+          customer_name?: string
+          framed_image_urls?: string[]
+          id?: string
+          operator_id?: string
+          vehicle_id?: string
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveries_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      frames: {
+        Row: {
+          created_at: string
+          dealership_id: string | null
+          id: string
+          image_url: string
+          model: string
+          name: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          dealership_id?: string | null
+          id?: string
+          image_url: string
+          model: string
+          name: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          dealership_id?: string | null
+          id?: string
+          image_url?: string
+          model?: string
+          name?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "frames_dealership_id_fkey"
+            columns: ["dealership_id"]
+            isOneToOne: false
+            referencedRelation: "dealerships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          dealership_id: string | null
+          email: string
+          id: string
+          name: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          created_at?: string
+          dealership_id?: string | null
+          email: string
+          id: string
+          name: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          created_at?: string
+          dealership_id?: string | null
+          email?: string
+          id?: string
+          name?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_dealership_id_fkey"
+            columns: ["dealership_id"]
+            isOneToOne: false
+            referencedRelation: "dealerships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          color: string
+          created_at: string
+          dealership_id: string
+          id: string
+          is_delivered: boolean
+          model: string
+          relationship_id: string | null
+          variant: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          dealership_id: string
+          id?: string
+          is_delivered?: boolean
+          model: string
+          relationship_id?: string | null
+          variant: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          dealership_id?: string
+          id?: string
+          is_delivered?: boolean
+          model?: string
+          relationship_id?: string | null
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_dealership_id_fkey"
+            columns: ["dealership_id"]
+            isOneToOne: false
+            referencedRelation: "dealerships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "oem_admin" | "dealership_admin" | "operator"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +314,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["oem_admin", "dealership_admin", "operator"],
+    },
   },
 } as const

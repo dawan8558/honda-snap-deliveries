@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,19 +6,41 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const DealershipManagement = () => {
-  const [dealerships, setDealerships] = useState([
-    { id: 1, name: 'Honda Karachi Central', city: 'Karachi' },
-    { id: 2, name: 'Honda Lahore Main', city: 'Lahore' },
-    { id: 3, name: 'Honda Islamabad', city: 'Islamabad' }
-  ]);
-  
+  const [dealerships, setDealerships] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [newDealership, setNewDealership] = useState({ name: '', city: '' });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const { toast } = useToast();
 
-  const handleAddDealership = () => {
+  useEffect(() => {
+    fetchDealerships();
+  }, []);
+
+  const fetchDealerships = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dealerships')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setDealerships(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch dealerships",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddDealership = async () => {
     if (!newDealership.name || !newDealership.city) {
       toast({
         variant: "destructive",
@@ -28,20 +50,37 @@ const DealershipManagement = () => {
       return;
     }
 
-    const dealership = {
-      id: dealerships.length + 1,
-      ...newDealership
-    };
+    setAdding(true);
 
-    setDealerships([...dealerships, dealership]);
-    setNewDealership({ name: '', city: '' });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "Success",
-      description: "Dealership added successfully",
-    });
+    try {
+      const { error } = await supabase
+        .from('dealerships')
+        .insert([newDealership]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Dealership added successfully",
+      });
+
+      setNewDealership({ name: '', city: '' });
+      setIsDialogOpen(false);
+      fetchDealerships();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setAdding(false);
+    }
   };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading dealerships...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -54,7 +93,7 @@ const DealershipManagement = () => {
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-primary hover:bg-primary-hover">Add Dealership</Button>
+                <Button variant="honda">Add Dealership</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -86,7 +125,9 @@ const DealershipManagement = () => {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddDealership}>Add Dealership</Button>
+                  <Button onClick={handleAddDealership} disabled={adding}>
+                    {adding ? 'Adding...' : 'Add Dealership'}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -103,9 +144,9 @@ const DealershipManagement = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dealerships.map((dealership) => (
+              {dealerships.map((dealership, index) => (
                 <TableRow key={dealership.id}>
-                  <TableCell className="font-medium">{dealership.id}</TableCell>
+                  <TableCell className="font-medium">{index + 1}</TableCell>
                   <TableCell>{dealership.name}</TableCell>
                   <TableCell>{dealership.city}</TableCell>
                   <TableCell>
@@ -115,6 +156,11 @@ const DealershipManagement = () => {
               ))}
             </TableBody>
           </Table>
+          {dealerships.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              No dealerships found. Add your first dealership above.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
