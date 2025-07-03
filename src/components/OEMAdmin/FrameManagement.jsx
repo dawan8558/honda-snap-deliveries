@@ -9,16 +9,32 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Import frame images
+import hondaCityFrame from '@/assets/frames/honda-city-frame.png';
+import hondaCivicFrame from '@/assets/frames/honda-civic-frame.png';
+import hondaAccordFrame from '@/assets/frames/honda-accord-frame.png';
+import hondaHrvFrame from '@/assets/frames/honda-hrv-frame.png';
+import hondaCrvFrame from '@/assets/frames/honda-crv-frame.png';
+
 const FrameManagement = ({ userRole, dealershipId = null }) => {
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const models = ['City', 'Civic', 'Accord', 'HR-V', 'CR-V'];
   
+  const presetFrames = {
+    'City': hondaCityFrame,
+    'Civic': hondaCivicFrame,
+    'Accord': hondaAccordFrame,
+    'HR-V': hondaHrvFrame,
+    'CR-V': hondaCrvFrame,
+  };
+  
   const [newFrame, setNewFrame] = useState({
     name: '',
     model: '',
-    image_file: null
+    image_file: null,
+    usePreset: false
   });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -60,11 +76,11 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
   };
 
   const handleAddFrame = async () => {
-    if (!newFrame.name || !newFrame.model || !newFrame.image_file) {
+    if (!newFrame.name || !newFrame.model || (!newFrame.image_file && !newFrame.usePreset)) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please fill in all fields and upload an image",
+        description: "Please fill in all fields and select an image or use preset",
       });
       return;
     }
@@ -72,19 +88,28 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
     setAdding(true);
 
     try {
-      // Upload image to Supabase Storage
-      const fileExt = newFrame.image_file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
+      let publicUrl;
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('frames')
-        .upload(fileName, newFrame.image_file);
+      if (newFrame.usePreset && presetFrames[newFrame.model]) {
+        // Use preset frame image
+        publicUrl = presetFrames[newFrame.model];
+      } else {
+        // Upload custom image to Supabase Storage
+        const fileExt = newFrame.image_file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('frames')
+          .upload(fileName, newFrame.image_file);
 
-      if (uploadError) throw uploadError;
+        if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('frames')
-        .getPublicUrl(fileName);
+        const { data: { publicUrl: uploadedUrl } } = supabase.storage
+          .from('frames')
+          .getPublicUrl(fileName);
+        
+        publicUrl = uploadedUrl;
+      }
 
       // Insert frame record
       const { error: insertError } = await supabase
@@ -104,7 +129,7 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
         description: "Frame uploaded successfully",
       });
 
-      setNewFrame({ name: '', model: '', image_file: null });
+      setNewFrame({ name: '', model: '', image_file: null, usePreset: false });
       setIsDialogOpen(false);
       fetchFrames();
     } catch (error) {
@@ -185,6 +210,25 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="frame-image">Frame Image (PNG)</Label>
+                    {newFrame.model && presetFrames[newFrame.model] && (
+                      <div className="mb-3">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          onClick={() => setNewFrame({ ...newFrame, usePreset: true })}
+                          className="w-full mb-2"
+                        >
+                          Use Preset {newFrame.model} Frame
+                        </Button>
+                        <div className="aspect-video bg-gray-100 rounded border p-2">
+                          <img 
+                            src={presetFrames[newFrame.model]} 
+                            alt={`${newFrame.model} preset frame`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    )}
                     <Input
                       id="frame-image"
                       type="file"
@@ -194,6 +238,11 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                     {newFrame.image_file && (
                       <p className="text-sm text-muted-foreground">
                         Selected: {newFrame.image_file.name}
+                      </p>
+                    )}
+                    {newFrame.usePreset && (
+                      <p className="text-sm text-success">
+                        Using preset {newFrame.model} frame
                       </p>
                     )}
                   </div>
