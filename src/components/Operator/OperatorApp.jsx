@@ -1,14 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import VehicleList from './VehicleList';
 import PhotoCapture from './PhotoCapture';
 import { ArrowLeft } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const OperatorApp = ({ user, onLogout }) => {
   const [currentView, setCurrentView] = useState('vehicles');
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [dealershipName, setDealershipName] = useState('');
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchDealershipName();
+  }, [user.dealership_id]);
+
+  const fetchDealershipName = async () => {
+    if (!user.dealership_id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('dealerships')
+        .select('name')
+        .eq('id', user.dealership_id)
+        .single();
+
+      if (error) throw error;
+      setDealershipName(data?.name || '');
+    } catch (error) {
+      console.error('Failed to fetch dealership name:', error);
+      toast({
+        title: "Warning",
+        description: "Could not load dealership information",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleVehicleSelect = (vehicle) => {
     setSelectedVehicle(vehicle);
@@ -47,12 +77,18 @@ const OperatorApp = ({ user, onLogout }) => {
               </div>
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">
-                  {currentView === 'vehicles' ? 'Honda Delivery' : selectedVehicle?.model}
+                  {currentView === 'vehicles' 
+                    ? (dealershipName ? `${dealershipName} - Honda Delivery` : 'Honda Delivery') 
+                    : `Honda ${selectedVehicle?.model}`
+                  }
                 </h1>
                 {currentView === 'photo' && selectedVehicle && (
                   <p className="text-sm text-gray-600">
                     {selectedVehicle.variant} • {selectedVehicle.color}
                   </p>
+                )}
+                {currentView === 'vehicles' && dealershipName && (
+                  <p className="text-xs text-gray-500">{dealershipName}</p>
                 )}
               </div>
             </div>
