@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +9,7 @@ import Login from "./components/Auth/Login";
 import OEMDashboard from "./components/OEMAdmin/OEMDashboard";
 import DealershipDashboard from "./components/DealershipAdmin/DealershipDashboard";
 import OperatorApp from "./components/Operator/OperatorApp";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -167,30 +169,87 @@ const App = () => {
     );
   }
 
-  const renderUserInterface = () => {
+  const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!user) {
-      return <Login onLogin={handleLogin} />;
+      return <Navigate to="/login" replace />;
     }
+    
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+      return <Navigate to="/unauthorized" replace />;
+    }
+    
+    return children;
+  };
 
-    // Route based on user role
-    switch (user.role) {
-      case 'oem_admin':
-        return <OEMDashboard user={user} onLogout={handleLogout} />;
-      case 'dealership_admin':
-        return <DealershipDashboard user={user} onLogout={handleLogout} />;
-      case 'operator':
-        return <OperatorApp user={user} onLogout={handleLogout} />;
-      default:
-        return <Login onLogin={handleLogin} />;
+  const LoginRoute = () => {
+    if (user) {
+      // Redirect based on user role
+      switch (user.role) {
+        case 'oem_admin':
+          return <Navigate to="/oem" replace />;
+        case 'dealership_admin':
+          return <Navigate to="/dealership" replace />;
+        case 'operator':
+          return <Navigate to="/operator" replace />;
+        default:
+          return <Navigate to="/login" replace />;
+      }
     }
+    return <Login onLogin={handleLogin} />;
   };
 
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        {renderUserInterface()}
+        <Router>
+          <ErrorBoundary>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/login" element={<LoginRoute />} />
+              <Route 
+                path="/oem/*" 
+                element={
+                  <ProtectedRoute allowedRoles={['oem_admin']}>
+                    <OEMDashboard user={user} onLogout={handleLogout} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/dealership/*" 
+                element={
+                  <ProtectedRoute allowedRoles={['dealership_admin']}>
+                    <DealershipDashboard user={user} onLogout={handleLogout} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/operator/*" 
+                element={
+                  <ProtectedRoute allowedRoles={['operator']}>
+                    <OperatorApp user={user} onLogout={handleLogout} />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/unauthorized" 
+                element={
+                  <div className="min-h-screen flex items-center justify-center">
+                    <div className="text-center">
+                      <h1 className="text-2xl font-bold text-destructive mb-4">Access Denied</h1>
+                      <p className="text-muted-foreground">You don't have permission to access this page.</p>
+                    </div>
+                  </div>
+                } 
+              />
+              <Route path="/" element={<Navigate to={user ? (
+                user.role === 'oem_admin' ? '/oem' : 
+                user.role === 'dealership_admin' ? '/dealership' : 
+                '/operator'
+              ) : '/login'} replace />} />
+            </Routes>
+          </ErrorBoundary>
+        </Router>
       </TooltipProvider>
     </QueryClientProvider>
   );
