@@ -168,28 +168,15 @@ const App = () => {
   }
 
   const renderUserInterface = () => {
-    console.log('renderUserInterface called, user:', user);
+    // Development mode - bypass auth
+    const devUser = {
+      id: 'dev-user',
+      email: 'dev@example.com',
+      role: 'oem_admin',
+      name: 'Dev User'
+    };
     
-    if (!user) {
-      console.log('No user found, rendering Login component');
-      return <Login onLogin={handleLogin} />;
-    }
-
-    console.log('User role:', user.role);
-    switch (user.role) {
-      case 'oem_admin':
-        console.log('Rendering OEM Dashboard');
-        return <OEMDashboard user={user} onLogout={handleLogout} />;
-      case 'dealership_admin':
-        console.log('Rendering Dealership Dashboard');
-        return <DealershipDashboard user={user} onLogout={handleLogout} />;
-      case 'operator':
-        console.log('Rendering Operator App');
-        return <OperatorApp user={user} onLogout={handleLogout} />;
-      default:
-        console.log('Unknown role, rendering Login');
-        return <Login onLogin={handleLogin} />;
-    }
+    return <OEMDashboard user={devUser} onLogout={() => console.log('Dev logout')} />;
   };
 
   return (
