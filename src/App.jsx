@@ -20,6 +20,7 @@ const App = () => {
 
   useEffect(() => {
     let mounted = true;
+    let isInitialized = false;
 
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -27,6 +28,13 @@ const App = () => {
         if (!mounted) return;
         
         console.log('Auth state changed:', event, session?.user?.id);
+        
+        // Avoid processing duplicate SIGNED_IN events after INITIAL_SESSION
+        if (event === 'SIGNED_IN' && isInitialized) {
+          console.log('Skipping duplicate SIGNED_IN event');
+          return;
+        }
+        
         setSession(session);
         
         if (session?.user) {
@@ -51,6 +59,7 @@ const App = () => {
               if (mounted) {
                 setUser(session.user);
                 setLoading(false);
+                isInitialized = true;
               }
             } else if (profile && mounted) {
               console.log('Profile fetched successfully:', profile);
@@ -59,6 +68,7 @@ const App = () => {
                 ...profile
               });
               setLoading(false);
+              isInitialized = true;
             }
           } catch (error) {
             console.error('Profile fetch failed:', error);
@@ -66,6 +76,7 @@ const App = () => {
             if (mounted) {
               setUser(session.user);
               setLoading(false);
+              isInitialized = true;
             }
           }
         } else {
@@ -73,6 +84,7 @@ const App = () => {
           if (mounted) {
             setUser(null);
             setLoading(false);
+            isInitialized = true;
           }
         }
       }
@@ -84,12 +96,18 @@ const App = () => {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Session error:', error);
-          if (mounted) setLoading(false);
+          if (mounted) {
+            setLoading(false);
+            isInitialized = true;
+          }
         }
         // The auth state change listener will handle the session
       } catch (error) {
         console.error('Auth initialization failed:', error);
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          isInitialized = true;
+        }
       }
     };
 
