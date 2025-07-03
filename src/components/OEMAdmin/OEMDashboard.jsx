@@ -38,11 +38,11 @@ const OEMDashboard = ({ user, onLogout }) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-2xl">
-            <TabsTrigger value="dealerships">Dealerships</TabsTrigger>
-            <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-            <TabsTrigger value="frames">Frames</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
+          <TabsList className="inline-flex h-12 items-center justify-center bg-muted p-1 text-muted-foreground rounded-lg">
+            <TabsTrigger value="dealerships" className="px-6 py-2">Dealerships</TabsTrigger>
+            <TabsTrigger value="vehicles" className="px-6 py-2">Vehicles</TabsTrigger>
+            <TabsTrigger value="frames" className="px-6 py-2">Frames</TabsTrigger>
+            <TabsTrigger value="reports" className="px-6 py-2">Reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dealerships">
