@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-const HONDA_MODELS = ['Civic', 'Accord', 'CR-V', 'HR-V', 'City'];
+const HONDA_MODELS = ['Civic', 'Accord', 'CR-V', 'HR-V', 'BR-V', 'City'];
 const HONDA_COLORS = ['White', 'Black', 'Silver', 'Red', 'Blue', 'Gray'];
 
 const VehicleEdit = ({ isOpen, onClose, vehicle, dealershipId, onVehicleUpdated }) => {
