@@ -28,105 +28,104 @@ const App = () => {
 
     console.log('Setting up auth listener...');
 
-    const handleAuthState = async (event, session) => {
+    // Simple, fast auth state handler - no blocking operations
+    const handleAuthState = (event, session) => {
       if (!mounted) return;
       
       console.log('Auth state changed:', event, session?.user?.id);
       
-      // Clear any existing timeout
+      // Clear timeout since we got a response
       if (timeoutId) {
         clearTimeout(timeoutId);
+        timeoutId = null;
       }
       
       setSession(session);
-      
-      if (session?.user) {
-        console.log('User found, fetching profile...');
-        
-        try {
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (mounted) {
-            if (error) {
-              console.log('Profile fetch error, using basic user:', error.message);
-              setUser(session.user);
-            } else {
-              console.log('Profile fetched successfully:', profile);
-              setUser({
-                ...session.user,
-                ...profile
-              });
-            }
-            setLoading(false);
-            setAuthInitialized(true);
-          }
-        } catch (error) {
-          console.log('Profile fetch failed, using basic user:', error.message);
-          if (mounted) {
-            setUser(session.user);
-            setLoading(false);
-            setAuthInitialized(true);
-          }
-        }
-      } else {
-        console.log('No session, clearing user');
-        if (mounted) {
-          setUser(null);
-          setLoading(false);
-          setAuthInitialized(true);
-        }
+      setUser(session?.user || null);
+      setLoading(false);
+      setAuthInitialized(true);
+
+      // Fetch profile in background - don't block auth flow
+      if (session?.user && mounted) {
+        fetchUserProfile(session.user);
       }
     };
 
-    // Set up auth state listener
+    // Non-blocking profile fetch
+    const fetchUserProfile = async (user) => {
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (mounted && profile && !error) {
+          console.log('Profile fetched, updating user data');
+          setUser(prevUser => ({
+            ...prevUser,
+            ...profile
+          }));
+        }
+      } catch (error) {
+        console.log('Profile fetch failed (non-critical):', error.message);
+      }
+    };
+
+    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthState);
 
-    // Initial session check with timeout fallback
+    // Fast initial session check
     const initializeAuth = async () => {
       try {
-        console.log('Checking for existing session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('Quick session check...');
         
-        if (error) {
-          console.error('Session check error:', error);
-          if (mounted && !authInitialized) {
-            setLoading(false);
-            setAuthInitialized(true);
-          }
-          return;
-        }
+        // Set a much shorter timeout for initial check
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session check timeout')), 3000)
+        );
 
-        // If no session found, stop loading immediately
-        if (!session) {
-          console.log('No existing session found');
-          if (mounted && !authInitialized) {
-            setLoading(false);
-            setAuthInitialized(true);
+        const { data: { session }, error } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]);
+        
+        if (mounted) {
+          if (error) {
+            console.error('Session check error:', error);
+          }
+          
+          // Always initialize quickly, let auth listener handle the rest
+          setSession(session);
+          setUser(session?.user || null);
+          setLoading(false);
+          setAuthInitialized(true);
+
+          // Fetch profile in background if we have a user
+          if (session?.user) {
+            fetchUserProfile(session.user);
           }
         }
-        // If session exists, handleAuthState will be called by the listener
       } catch (error) {
-        console.error('Auth initialization failed:', error);
-        if (mounted && !authInitialized) {
+        console.error('Auth initialization failed or timed out:', error);
+        if (mounted) {
           setLoading(false);
           setAuthInitialized(true);
         }
       }
     };
 
-    // Fallback timeout - if nothing happens in 10 seconds, stop loading
+    // Much shorter fallback timeout - 3 seconds max
     timeoutId = setTimeout(() => {
-      console.log('Auth timeout - forcing app to load');
+      console.log('Auth timeout - forcing app to load without auth');
       if (mounted && !authInitialized) {
         setLoading(false);
         setAuthInitialized(true);
       }
-    }, 10000);
+    }, 3000);
 
+    // Start initialization
     initializeAuth();
 
     return () => {
@@ -135,9 +134,9 @@ const App = () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      subscription.unsubscribe();
+      subscription?.unsubscribe?.();
     };
-  }, [authInitialized]);
+  }, []); // Remove authInitialized dependency to prevent re-runs
 
   const handleLogin = (userData) => {
     console.log('handleLogin called with:', userData);
