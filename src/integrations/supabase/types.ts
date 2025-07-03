@@ -234,6 +234,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_current_user_dealership: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       has_role: {
         Args: {
           _user_id: string
