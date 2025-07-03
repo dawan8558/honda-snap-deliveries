@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Search } from 'lucide-react';
+import { VehicleListLoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 
 const VehicleList = ({ dealershipId, onVehicleSelect }) => {
   const [vehicles, setVehicles] = useState([]);
@@ -51,7 +52,15 @@ const VehicleList = ({ dealershipId, onVehicleSelect }) => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading vehicles...</div>;
+    return (
+      <div className="space-y-4">
+        <CardHeader className="px-0">
+          <CardTitle className="text-lg">Pending Deliveries</CardTitle>
+          <p className="text-sm text-muted-foreground">Loading vehicles...</p>
+        </CardHeader>
+        <VehicleListLoadingSkeleton count={6} />
+      </div>
+    );
   }
 
   // Filter vehicles based on search term
