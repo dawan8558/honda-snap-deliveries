@@ -382,8 +382,8 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
                 </div>
               </div>
 
-              <Button onClick={handleSubmit} className="w-full">
-                Submit Delivery
+              <Button onClick={handleSubmit} className="w-full" disabled={loading}>
+                {loading ? 'Submitting...' : 'Submit Delivery'}
               </Button>
             </CardContent>
           </Card>
