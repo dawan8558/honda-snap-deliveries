@@ -9,25 +9,19 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-// Import frame images
-import hondaCityFrame from '@/assets/frames/honda-city-frame.png';
-import hondaCivicFrame from '@/assets/frames/honda-civic-frame.png';
-import hondaAccordFrame from '@/assets/frames/honda-accord-frame.png';
-import hondaHrvFrame from '@/assets/frames/honda-hrv-frame.png';
-import hondaCrvFrame from '@/assets/frames/honda-crv-frame.png';
-
 const FrameManagement = ({ userRole, dealershipId = null }) => {
   const [frames, setFrames] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const models = ['City', 'Civic', 'Accord', 'HR-V', 'CR-V'];
   
+  // Mock frame URLs (using placeholder images that will work)
   const presetFrames = {
-    'City': hondaCityFrame,
-    'Civic': hondaCivicFrame,
-    'Accord': hondaAccordFrame,
-    'HR-V': hondaHrvFrame,
-    'CR-V': hondaCrvFrame,
+    'City': 'https://via.placeholder.com/800x600/E60012/FFFFFF?text=Honda+City+Frame',
+    'Civic': 'https://via.placeholder.com/800x600/E60012/FFFFFF?text=Honda+Civic+Frame',
+    'Accord': 'https://via.placeholder.com/800x600/E60012/FFFFFF?text=Honda+Accord+Frame',
+    'HR-V': 'https://via.placeholder.com/800x600/E60012/FFFFFF?text=Honda+HR-V+Frame',
+    'CR-V': 'https://via.placeholder.com/800x600/E60012/FFFFFF?text=Honda+CR-V+Frame',
   };
   
   const [newFrame, setNewFrame] = useState({
@@ -266,7 +260,7 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
                     alt={frame.name}
                     className="max-w-full max-h-full object-contain"
                     onError={(e) => {
-                      e.target.src = '/placeholder-frame.png';
+                      e.target.src = 'https://via.placeholder.com/400x300/E5E7EB/6B7280?text=Frame+Not+Found';
                     }}
                   />
                 </div>
