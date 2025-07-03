@@ -27,23 +27,74 @@ const Login = ({ onLogin }) => {
 
         if (error) throw error;
 
-        // Fetch user profile with proper error handling
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .maybeSingle();
+        // Fetch user profile with enhanced error handling and profile creation
+        let profile;
+        let retryCount = 0;
+        const maxRetries = 2;
 
-        if (profileError) {
-          console.error('Profile fetch error during login:', profileError);
-          throw new Error('Failed to load user profile. Please try again.');
+        while (retryCount <= maxRetries) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          if (profileError) {
+            console.error('Profile fetch error during login:', profileError);
+            
+            // Retry on network errors
+            if (retryCount < maxRetries && (profileError.message?.includes('network') || profileError.message?.includes('timeout'))) {
+              retryCount++;
+              console.log(`Retrying profile fetch (attempt ${retryCount})...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+              continue;
+            }
+            
+            throw new Error('Failed to load user profile. Please try again.');
+          }
+
+          profile = profileData;
+          break;
         }
 
+        // Create profile if it doesn't exist
         if (!profile) {
-          throw new Error('User profile not found. Please contact support.');
+          console.log('No profile found, creating one...');
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              name: data.user.user_metadata?.name || data.user.email,
+              email: data.user.email,
+              role: 'operator', // Default role
+              dealership_id: null // Will be assigned by admin
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('Failed to create profile:', createError);
+            throw new Error('Failed to create user profile. Please contact support.');
+          }
+
+          profile = newProfile;
+          console.log('Profile created successfully:', profile);
         }
 
-        console.log('Login successful, profile loaded:', { role: profile.role });
+        // Validate profile completeness
+        if (!profile.role) {
+          console.warn('Profile missing role, updating...');
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ role: 'operator' })
+            .eq('id', data.user.id);
+          
+          if (!updateError) {
+            profile.role = 'operator';
+          }
+        }
+
+        console.log('Login successful, profile loaded:', { role: profile.role, dealership_id: profile.dealership_id });
         
         onLogin({
           ...data.user,

@@ -28,11 +28,11 @@ const App = () => {
 
     console.log('Setting up auth listener...');
 
-    // Critical profile fetch with proper loading states
-    const fetchUserProfile = async (authUser) => {
+    // Critical profile fetch with proper loading states and profile creation
+    const fetchUserProfile = async (authUser, retryCount = 0) => {
       if (!mounted) return;
       
-      console.log('Fetching profile for user:', authUser.id);
+      console.log('Fetching profile for user:', authUser.id, 'Retry:', retryCount);
       setProfileLoading(true);
       
       try {
@@ -46,26 +46,90 @@ const App = () => {
         
         if (error) {
           console.error('Profile fetch error:', error);
+          
+          // Retry on network errors
+          if (retryCount < 2 && (error.message?.includes('network') || error.message?.includes('timeout'))) {
+            console.log('Retrying profile fetch due to network error...');
+            setTimeout(() => fetchUserProfile(authUser, retryCount + 1), 1000 * (retryCount + 1));
+            return;
+          }
+          
           setProfileLoading(false);
           return;
         }
         
         if (profile) {
+          // Validate profile completeness
+          if (!profile.role) {
+            console.error('Profile missing role, updating to default operator role');
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ role: 'operator' })
+              .eq('id', authUser.id);
+            
+            if (!updateError) {
+              profile.role = 'operator';
+            }
+          }
+          
           console.log('Profile fetched successfully:', { role: profile.role, dealership_id: profile.dealership_id });
           setUser({
             ...authUser,
             ...profile
           });
         } else {
-          console.warn('No profile found for user:', authUser.id);
-          setUser(authUser);
+          console.warn('No profile found for user:', authUser.id, 'Creating profile...');
+          
+          // Create missing profile
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: authUser.id,
+              name: authUser.user_metadata?.name || authUser.email,
+              email: authUser.email,
+              role: 'operator', // Default role
+              dealership_id: null // Will be assigned by admin
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error('Failed to create profile:', createError);
+            // Set user without profile data as fallback
+            setUser({
+              ...authUser,
+              role: 'operator', // Temporary role
+              name: authUser.user_metadata?.name || authUser.email,
+              email: authUser.email
+            });
+          } else {
+            console.log('Profile created successfully:', newProfile);
+            setUser({
+              ...authUser,
+              ...newProfile
+            });
+          }
         }
         
         setProfileLoading(false);
       } catch (error) {
         console.error('Profile fetch failed:', error.message);
+        
+        // Retry on network errors
+        if (retryCount < 2 && mounted) {
+          console.log('Retrying profile fetch due to error...');
+          setTimeout(() => fetchUserProfile(authUser, retryCount + 1), 1000 * (retryCount + 1));
+          return;
+        }
+        
         if (mounted) {
-          setUser(authUser);
+          // Set user with minimal data as fallback
+          setUser({
+            ...authUser,
+            role: 'operator', // Temporary role
+            name: authUser.user_metadata?.name || authUser.email,
+            email: authUser.email
+          });
           setProfileLoading(false);
         }
       }
