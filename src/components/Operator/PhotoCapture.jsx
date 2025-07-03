@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Camera, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const [customerInfo, setCustomerInfo] = useState({
@@ -15,20 +16,40 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   });
   
   const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [capturedPhotoFile, setCapturedPhotoFile] = useState(null);
   const [selectedFrames, setSelectedFrames] = useState([]);
   const [framedPhotos, setFramedPhotos] = useState([]);
+  const [availableFrames, setAvailableFrames] = useState([]);
   const [consent, setConsent] = useState(false);
   const [currentStep, setCurrentStep] = useState('info'); // info, photo, frames, preview, submit
+  const [loading, setLoading] = useState(false);
   
   const fileInputRef = useRef(null);
   const { toast } = useToast();
 
-  // Mock frames that match the vehicle model
-  const availableFrames = [
-    { id: 1, name: 'Honda City Red Frame', model: 'City', image_url: '/placeholder-frame.png' },
-    { id: 2, name: 'Honda City Blue Frame', model: 'City', image_url: '/placeholder-frame.png' },
-    { id: 3, name: 'Civic Sport Frame', model: 'Civic', image_url: '/placeholder-frame.png' }
-  ].filter(frame => frame.model === vehicle.model);
+  useEffect(() => {
+    fetchAvailableFrames();
+  }, [vehicle.model]);
+
+  const fetchAvailableFrames = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('frames')
+        .select('*')
+        .eq('model', vehicle.model);
+
+      if (error) throw error;
+
+      setAvailableFrames(data || []);
+    } catch (error) {
+      console.error('Error fetching frames:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load frames for this vehicle model",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleInfoNext = () => {
     if (!customerInfo.name || !customerInfo.whatsapp) {
@@ -45,6 +66,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (file) {
+      setCapturedPhotoFile(file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setCapturedPhoto(e.target.result);
@@ -98,16 +120,52 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
       return;
     }
 
+    setLoading(true);
+
     try {
-      // Mock submission - in real app this would save to Supabase
-      console.log('Submitting delivery:', {
-        vehicle_id: vehicle.id,
-        operator_id: operator.id,
-        customer_name: customerInfo.name,
-        whatsapp_number: customerInfo.whatsapp,
-        framed_photos: framedPhotos,
-        consent_to_share: consent
-      });
+      // Upload original photo to storage
+      if (!capturedPhotoFile) {
+        throw new Error('No photo captured');
+      }
+
+      const fileExt = capturedPhotoFile.name.split('.').pop();
+      const fileName = `${vehicle.id}_${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('delivery-photos')
+        .upload(fileName, capturedPhotoFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('delivery-photos')
+        .getPublicUrl(fileName);
+
+      // For now, we'll store the original photo URL in the array
+      // In a real implementation, you'd compose the photo with frames here
+      const framedImageUrls = [publicUrl];
+
+      // Save delivery record to database
+      const { error: insertError } = await supabase
+        .from('deliveries')
+        .insert([{
+          vehicle_id: vehicle.id,
+          operator_id: operator.id,
+          customer_name: customerInfo.name,
+          whatsapp_number: customerInfo.whatsapp,
+          framed_image_urls: framedImageUrls,
+          consent_to_share: consent
+        }]);
+
+      if (insertError) throw insertError;
+
+      // Mark vehicle as delivered
+      const { error: updateError } = await supabase
+        .from('vehicles')
+        .update({ is_delivered: true })
+        .eq('id', vehicle.id);
+
+      if (updateError) throw updateError;
 
       toast({
         title: "Delivery submitted!",
@@ -122,6 +180,8 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
         title: "Submission failed",
         description: error.message,
       });
+    } finally {
+      setLoading(false);
     }
   };
 

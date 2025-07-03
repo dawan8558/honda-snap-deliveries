@@ -1,55 +1,65 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const VehicleList = ({ dealershipId, onVehicleSelect }) => {
-  // Mock data - undelivered vehicles for the operator's dealership
-  const [vehicles] = useState([
-    { 
-      id: 1, 
-      model: 'City', 
-      variant: 'Aspire', 
-      color: 'Pearl White', 
-      is_delivered: false, 
-      relationship_id: 'REL001',
-      customer_name: '',
-      whatsapp_number: ''
-    },
-    { 
-      id: 4, 
-      model: 'City', 
-      variant: 'Aspire Prosmatec', 
-      color: 'Brilliant Red', 
-      is_delivered: false, 
-      relationship_id: 'REL004',
-      customer_name: '',
-      whatsapp_number: ''
-    },
-    { 
-      id: 5, 
-      model: 'Civic', 
-      variant: 'VTi Oriel', 
-      color: 'Sonic Gray', 
-      is_delivered: false, 
-      relationship_id: 'REL005',
-      customer_name: '',
-      whatsapp_number: ''
-    }
-  ]);
+  const [vehicles, setVehicles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  const pendingVehicles = vehicles.filter(vehicle => !vehicle.is_delivered);
+  useEffect(() => {
+    fetchVehicles();
+  }, [dealershipId]);
+
+  const fetchVehicles = async () => {
+    try {
+      let query = supabase
+        .from('vehicles')
+        .select(`
+          *,
+          dealerships:dealership_id (name)
+        `)
+        .eq('is_delivered', false)
+        .order('created_at', { ascending: false });
+
+      // If dealershipId is provided, filter by it
+      if (dealershipId) {
+        query = query.eq('dealership_id', dealershipId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      setVehicles(data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch vehicles",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-8">Loading vehicles...</div>;
+  }
 
   return (
     <div className="space-y-4">
       <CardHeader className="px-0">
         <CardTitle className="text-lg">Pending Deliveries</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {pendingVehicles.length} vehicle{pendingVehicles.length !== 1 ? 's' : ''} ready for delivery
+          {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''} ready for delivery
         </p>
       </CardHeader>
 
-      {pendingVehicles.length === 0 ? (
+      {vehicles.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="text-gray-500">
@@ -60,7 +70,7 @@ const VehicleList = ({ dealershipId, onVehicleSelect }) => {
         </Card>
       ) : (
         <div className="space-y-3">
-          {pendingVehicles.map((vehicle) => (
+          {vehicles.map((vehicle) => (
             <Card key={vehicle.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
