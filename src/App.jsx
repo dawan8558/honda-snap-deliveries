@@ -10,6 +10,7 @@ import OEMDashboard from "./components/OEMAdmin/OEMDashboard";
 import DealershipDashboard from "./components/DealershipAdmin/DealershipDashboard";
 import OperatorApp from "./components/Operator/OperatorApp";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { LoadingPage } from "./components/ui/loading";
 
 const queryClient = new QueryClient();
 
@@ -156,17 +157,7 @@ const App = () => {
 
   if (loading) {
     console.log('App is in loading state, loading value:', loading);
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-sm">H</span>
-          </div>
-          <p>Loading...</p>
-          <p className="text-sm text-gray-500 mt-2">Checking authentication...</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage message="Checking authentication..." />;
   }
 
   const ProtectedRoute = ({ children, allowedRoles }) => {
