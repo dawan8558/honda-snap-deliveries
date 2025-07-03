@@ -83,7 +83,7 @@ const App = () => {
         // Set a much shorter timeout for initial check
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session check timeout')), 3000)
+          setTimeout(() => reject(new Error('Session check timeout')), 10000)
         );
 
         const { data: { session }, error } = await Promise.race([
@@ -116,14 +116,14 @@ const App = () => {
       }
     };
 
-    // Much shorter fallback timeout - 3 seconds max
+    // Longer fallback timeout to allow session restoration
     timeoutId = setTimeout(() => {
       console.log('Auth timeout - forcing app to load without auth');
       if (mounted && !authInitialized) {
         setLoading(false);
         setAuthInitialized(true);
       }
-    }, 3000);
+    }, 10000);
 
     // Start initialization
     initializeAuth();
