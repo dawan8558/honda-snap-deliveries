@@ -10,7 +10,7 @@ import { DataTable } from '@/components/ui/data-table';
 
 console.log('DeliveryReports: Component loaded');
 
-const DeliveryReports = ({ userRole }) => {
+const DeliveryReports = ({ userRole, dealershipId = null }) => {
   console.log('DeliveryReports component rendering, userRole:', userRole);
   
   const [deliveries, setDeliveries] = useState([]);
@@ -36,22 +36,32 @@ const DeliveryReports = ({ userRole }) => {
       console.log('DeliveryReports: Starting data fetch...');
       
       try {
+        // Build query based on user role
+        let deliveriesQuery = supabase
+          .from('deliveries')
+          .select(`
+            *,
+            vehicles!inner (
+              id,
+              model,
+              variant,
+              color,
+              dealership_id,
+              dealerships!inner (name)
+            ),
+            profiles!deliveries_operator_id_fkey (name)
+          `);
+
+        // Filter by dealership if user is dealership admin
+        if (userRole === 'dealership_admin' && dealershipId) {
+          deliveriesQuery = deliveriesQuery.eq('vehicles.dealership_id', dealershipId);
+        }
+
+        deliveriesQuery = deliveriesQuery.order('created_at', { ascending: false });
+
         // Fetch deliveries and dealerships in parallel
         const [deliveriesResult, dealershipsResult] = await Promise.all([
-          supabase
-            .from('deliveries')
-            .select(`
-              *,
-              vehicles!inner (
-                id,
-                model,
-                variant,
-                color,
-                dealerships!inner (name)
-              ),
-              profiles!deliveries_operator_id_fkey (name)
-            `)
-            .order('created_at', { ascending: false }),
+          deliveriesQuery,
           
           supabase
             .from('dealerships')

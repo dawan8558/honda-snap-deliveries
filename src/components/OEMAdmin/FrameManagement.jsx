@@ -107,14 +107,15 @@ const FrameManagement = ({ userRole, dealershipId = null }) => {
         publicUrl = uploadedUrl;
       }
 
-      // Insert frame record
+      // Insert frame record with proper user context
+      const currentUser = await supabase.auth.getUser();
       const { error: insertError } = await supabase
         .from('frames')
         .insert([{
           name: newFrame.name,
           model: newFrame.model,
           image_url: publicUrl,
-          uploaded_by: userRole === 'dealership_admin' ? dealershipId : null,
+          uploaded_by: currentUser.data.user?.id,
           dealership_id: userRole === 'dealership_admin' ? dealershipId : null
         }]);
 
