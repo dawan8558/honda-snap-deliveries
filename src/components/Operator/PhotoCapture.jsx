@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Camera, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import PhotoComposer from '../PhotoCompositing/PhotoComposer';
+import { compressImage } from '@/utils/imageCompression';
 
 const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const [customerInfo, setCustomerInfo] = useState({
@@ -76,7 +77,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
     setCurrentStep('photo');
   };
 
-  const handlePhotoCapture = (e) => {
+  const handlePhotoCapture = async (e) => {
     const file = e.target.files[0];
     if (file) {
       // Validate file type
@@ -99,23 +100,45 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
         return;
       }
 
-      setCapturedPhotoFile(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setCapturedPhoto(e.target.result);
+      try {
+        // Show compression progress
         toast({
-          title: "Photo captured!",
-          description: "Review your photo and click 'Use This Photo' to continue",
+          title: "Processing image...",
+          description: "Optimizing image for upload",
         });
-      };
-      reader.onerror = () => {
+
+        // Compress the image
+        const compressedFile = await compressImage(file, {
+          maxWidth: 1920,
+          maxHeight: 1080,
+          quality: 0.8
+        });
+
+        setCapturedPhotoFile(compressedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setCapturedPhoto(e.target.result);
+          toast({
+            title: "Photo captured!",
+            description: "Review your photo and click 'Use This Photo' to continue",
+          });
+        };
+        reader.onerror = () => {
+          toast({
+            variant: "destructive",
+            title: "Error reading file",
+            description: "Please try again with a different image",
+          });
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (error) {
+        console.error('Error compressing image:', error);
         toast({
           variant: "destructive",
-          title: "Error reading file",
+          title: "Error processing image",
           description: "Please try again with a different image",
         });
-      };
-      reader.readAsDataURL(file);
+      }
     }
   };
 

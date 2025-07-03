@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar, Search, Filter, Download, Eye, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import LazyImage from '@/components/ui/LazyImage';
+import { GalleryLoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 
 const Gallery = ({ userRole, dealershipId }) => {
   const [photos, setPhotos] = useState([]);
@@ -214,11 +216,14 @@ const Gallery = ({ userRole, dealershipId }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading gallery...</p>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Photo Gallery</h2>
+            <p className="text-muted-foreground">Loading photos...</p>
+          </div>
         </div>
+        <GalleryLoadingSkeleton count={8} />
       </div>
     );
   }
@@ -359,12 +364,13 @@ const Gallery = ({ userRole, dealershipId }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredPhotos.map((photo) => (
             <Card key={photo.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-              <div className="aspect-square relative">
-                <img
+              <div className="relative">
+                <LazyImage
                   src={photo.imageUrl}
                   alt={`${photo.customerName} delivery photo`}
-                  className="w-full h-full object-cover cursor-pointer"
+                  className="cursor-pointer"
                   onClick={() => setSelectedPhoto(photo)}
+                  aspectRatio="square"
                 />
                 <div className="absolute top-2 right-2">
                   <Badge variant={photo.consentToShare ? "default" : "secondary"} className="text-xs">
