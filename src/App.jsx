@@ -38,15 +38,20 @@ const App = () => {
               .eq('id', session.user.id)
               .single();
             
-            if (error) {
-              console.error('Error fetching profile:', error);
+          if (error) {
+            console.error('Error fetching profile:', error);
+            if (mounted) {
               setUser(session.user);
-            } else if (profile && mounted) {
-              setUser({
-                ...session.user,
-                ...profile
-              });
             }
+          } else if (profile && mounted) {
+            setUser({
+              ...session.user,
+              ...profile
+            });
+          } else if (mounted) {
+            // No profile found, use session user data
+            setUser(session.user);
+          }
           } catch (error) {
             console.error('Profile fetch failed:', error);
             setUser(session.user);
