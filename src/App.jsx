@@ -17,42 +17,89 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    
+    const initializeAuth = async () => {
+      try {
+        // Get initial session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) setLoading(false);
+          return;
+        }
+
+        if (session?.user && mounted) {
+          try {
+            // Fetch user profile
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+            }
+            
+            if (mounted) {
+              setSession(session);
+              setUser(profile ? { ...session.user, ...profile } : null);
+            }
+          } catch (error) {
+            console.error('Error in profile fetch:', error);
+            if (mounted) setUser(null);
+          }
+        }
+        
+        if (mounted) setLoading(false);
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) setLoading(false);
+      }
+    };
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         setSession(session);
         
         if (session?.user) {
-          // Fetch user profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profile) {
-            setUser({
-              ...session.user,
-              ...profile
-            });
+          try {
+            // Fetch user profile
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+            }
+            
+            if (mounted) {
+              setUser(profile ? { ...session.user, ...profile } : null);
+            }
+          } catch (error) {
+            console.error('Error in profile fetch:', error);
+            if (mounted) setUser(null);
           }
         } else {
-          setUser(null);
+          if (mounted) setUser(null);
         }
-        setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Will be handled by the auth state change listener
-      } else {
-        setLoading(false);
-      }
-    });
+    // Initialize auth
+    initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogin = (userData) => {
