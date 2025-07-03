@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Search } from 'lucide-react';
 
 const VehicleList = ({ dealershipId, onVehicleSelect }) => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,28 +53,68 @@ const VehicleList = ({ dealershipId, onVehicleSelect }) => {
     return <div className="text-center py-8">Loading vehicles...</div>;
   }
 
+  // Filter vehicles based on search term
+  const filteredVehicles = vehicles.filter(vehicle => {
+    if (!searchTerm) return true;
+    
+    const searchLower = searchTerm.toLowerCase();
+    const searchableFields = [
+      vehicle.model,
+      vehicle.variant,
+      vehicle.color,
+      vehicle.relationship_id
+    ].filter(Boolean);
+    
+    return searchableFields.some(field => 
+      field.toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
     <div className="space-y-4">
       <CardHeader className="px-0">
         <CardTitle className="text-lg">Pending Deliveries</CardTitle>
         <p className="text-sm text-muted-foreground">
-          {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''} ready for delivery
+          {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} ready for delivery
+          {searchTerm && filteredVehicles.length !== vehicles.length && (
+            <span> (filtered from {vehicles.length})</span>
+          )}
         </p>
       </CardHeader>
 
-      {vehicles.length === 0 ? (
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Search vehicles by model, color, or ID..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredVehicles.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <div className="text-gray-500">
-              <p className="text-lg font-medium mb-2">All caught up!</p>
-              <p className="text-sm">No vehicles pending delivery at the moment.</p>
+              {searchTerm ? (
+                <>
+                  <p className="text-lg font-medium mb-2">No matching vehicles</p>
+                  <p className="text-sm">Try adjusting your search term.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium mb-2">All caught up!</p>
+                  <p className="text-sm">No vehicles pending delivery at the moment.</p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {vehicles.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-md transition-shadow">
+        <div className="space-y-3 animate-fade-in">
+          {filteredVehicles.map((vehicle) => (
+            <Card key={vehicle.id} className="hover:shadow-md transition-all duration-200 hover-scale">
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
@@ -91,7 +134,7 @@ const VehicleList = ({ dealershipId, onVehicleSelect }) => {
                 </div>
                 
                 <Button 
-                  className="w-full bg-primary hover:bg-primary-hover"
+                  className="w-full bg-primary hover:bg-primary-hover transition-colors"
                   onClick={() => onVehicleSelect(vehicle)}
                 >
                   Start Delivery

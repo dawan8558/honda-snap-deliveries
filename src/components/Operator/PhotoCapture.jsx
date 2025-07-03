@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Camera, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import PhotoComposer from '../PhotoCompositing/PhotoComposer';
 
 const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const [customerInfo, setCustomerInfo] = useState({
@@ -21,7 +22,8 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
   const [framedPhotos, setFramedPhotos] = useState([]);
   const [availableFrames, setAvailableFrames] = useState([]);
   const [consent, setConsent] = useState(false);
-  const [currentStep, setCurrentStep] = useState('info'); // info, photo, frames, preview, submit
+  const [compositeResults, setCompositeResults] = useState([]);
+  const [currentStep, setCurrentStep] = useState('info'); // info, photo, frames, compose, preview, submit
   const [loading, setLoading] = useState(false);
   
   const fileInputRef = useRef(null);
@@ -99,11 +101,18 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
       return;
     }
 
-    // Mock frame application - in real app this would composite the images
-    const framed = selectedFrames.map(frame => ({
-      frameId: frame.id,
-      frameName: frame.name,
-      image: capturedPhoto // In real app, this would be the composited image
+    setCurrentStep('compose');
+  };
+
+  const handleCompositeComplete = (results) => {
+    setCompositeResults(results);
+    
+    // Generate preview images for the final step
+    const framed = results.map(result => ({
+      frameId: result.frameId,
+      frameName: result.frameName,
+      image: result.dataURL,
+      blob: result.blob
     }));
     
     setFramedPhotos(framed);
@@ -123,27 +132,32 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
     setLoading(true);
 
     try {
-      // Upload original photo to storage
-      if (!capturedPhotoFile) {
-        throw new Error('No photo captured');
+      // Upload composite images to storage
+      const uploadedUrls = [];
+      
+      for (let i = 0; i < framedPhotos.length; i++) {
+        const photo = framedPhotos[i];
+        if (photo.blob) {
+          const fileExt = 'png';
+          const fileName = `${vehicle.id}_frame_${photo.frameId}_${Date.now()}.${fileExt}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('delivery-photos')
+            .upload(fileName, photo.blob);
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('delivery-photos')
+            .getPublicUrl(fileName);
+
+          uploadedUrls.push(publicUrl);
+        }
       }
 
-      const fileExt = capturedPhotoFile.name.split('.').pop();
-      const fileName = `${vehicle.id}_${Date.now()}.${fileExt}`;
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('delivery-photos')
-        .upload(fileName, capturedPhotoFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('delivery-photos')
-        .getPublicUrl(fileName);
-
-      // For now, we'll store the original photo URL in the array
-      // In a real implementation, you'd compose the photo with frames here
-      const framedImageUrls = [publicUrl];
+      if (uploadedUrls.length === 0) {
+        throw new Error('No images were successfully uploaded');
+      }
 
       // Save delivery record to database
       const { error: insertError } = await supabase
@@ -153,7 +167,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
           operator_id: operator.id,
           customer_name: customerInfo.name,
           whatsapp_number: customerInfo.whatsapp,
-          framed_image_urls: framedImageUrls,
+          framed_image_urls: uploadedUrls,
           consent_to_share: consent
         }]);
 
@@ -340,9 +354,18 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
           </div>
 
           <Button onClick={handleFramesNext} className="w-full" disabled={selectedFrames.length === 0}>
-            Preview Photos ({selectedFrames.length})
+            Next: Compose Photos ({selectedFrames.length})
           </Button>
         </div>
+      )}
+
+      {/* Photo Composition Step */}
+      {currentStep === 'compose' && (
+        <PhotoComposer
+          originalPhoto={capturedPhoto}
+          selectedFrames={selectedFrames}
+          onCompositeComplete={handleCompositeComplete}
+        />
       )}
 
       {/* Preview Step */}

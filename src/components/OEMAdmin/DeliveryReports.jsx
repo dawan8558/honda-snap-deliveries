@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { SearchFilter } from '@/components/ui/search-filter';
+import { DataTable } from '@/components/ui/data-table';
 
 console.log('DeliveryReports: Component loaded');
 
@@ -17,9 +17,11 @@ const DeliveryReports = ({ userRole }) => {
   const [dealerships, setDealerships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     dealership: '',
     model: '',
+    consent: '',
     date: ''
   });
   const { toast } = useToast();
@@ -122,13 +124,79 @@ const DeliveryReports = ({ userRole }) => {
     });
   };
 
-  // Filter deliveries based on current filters
+  // Define filter options for SearchFilter component
+  const filterOptions = [
+    {
+      key: 'dealership',
+      label: 'Dealership',
+      type: 'select',
+      options: dealerships.map(d => ({ value: d.name, label: d.name }))
+    },
+    {
+      key: 'model',
+      label: 'Model',
+      type: 'select',
+      options: models.map(m => ({ value: m, label: m }))
+    },
+    {
+      key: 'consent',
+      label: 'Consent to Share',
+      type: 'boolean'
+    },
+    {
+      key: 'date',
+      label: 'Date',
+      type: 'date'
+    }
+  ];
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleClearFilters = () => {
+    setFilters({
+      dealership: '',
+      model: '',
+      consent: '',
+      date: ''
+    });
+    setSearchTerm('');
+  };
+
+  // Filter and search deliveries
   const filteredDeliveries = deliveries.filter(delivery => {
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const searchableFields = [
+        delivery.customer_name,
+        delivery.vehicle_model,
+        delivery.vehicle_color,
+        delivery.dealership_name,
+        delivery.operator_name,
+        delivery.whatsapp_number
+      ].filter(Boolean);
+      
+      const matchesSearch = searchableFields.some(field => 
+        field.toLowerCase().includes(searchLower)
+      );
+      
+      if (!matchesSearch) return false;
+    }
+
+    // Apply filters
     if (filters.dealership && delivery.dealership_name !== filters.dealership) {
       return false;
     }
     if (filters.model && !delivery.vehicle_model.includes(filters.model)) {
       return false;
+    }
+    if (filters.consent && filters.consent !== '') {
+      const consentValue = filters.consent === 'true';
+      if (delivery.consent_to_share !== consentValue) {
+        return false;
+      }
     }
     if (filters.date) {
       const deliveryDate = new Date(delivery.created_at).toISOString().split('T')[0];
@@ -138,6 +206,103 @@ const DeliveryReports = ({ userRole }) => {
     }
     return true;
   });
+
+  // Define columns for DataTable
+  const columns = [
+    {
+      key: 'id',
+      label: 'ID',
+      sortable: true,
+      render: (value) => <span className="font-medium">{value}</span>
+    },
+    {
+      key: 'vehicle_model',
+      label: 'Vehicle',
+      sortable: true,
+      render: (value, row) => (
+        <div>
+          <div className="font-medium">{value}</div>
+          <div className="text-sm text-muted-foreground">{row.vehicle_color}</div>
+        </div>
+      )
+    },
+    {
+      key: 'customer_name',
+      label: 'Customer',
+      sortable: true,
+      render: (value, row) => (
+        <div>
+          <div className="font-medium">{value}</div>
+          <div className="text-sm text-muted-foreground">{row.whatsapp_number}</div>
+        </div>
+      )
+    },
+    {
+      key: 'operator_name',
+      label: 'Operator',
+      sortable: true
+    },
+    {
+      key: 'dealership_name',
+      label: 'Dealership',
+      sortable: true
+    },
+    {
+      key: 'consent_to_share',
+      label: 'Consent',
+      sortable: true,
+      render: (value) => (
+        <Badge variant={value ? "default" : "secondary"}>
+          {value ? 'Yes' : 'No'}
+        </Badge>
+      )
+    },
+    {
+      key: 'created_at',
+      label: 'Date',
+      sortable: true,
+      render: (value) => formatDate(value)
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_, row) => (
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" onClick={() => setSelectedDelivery(row)}>
+              View Photos
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Delivery Photos - {row.customer_name}</DialogTitle>
+              <DialogDescription>
+                {row.vehicle_model} delivered by {row.operator_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              {row.framed_image_urls?.map((url, index) => (
+                <div key={index} className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                  <img 
+                    src={url} 
+                    alt={`Delivery photo ${index + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.src = 'https://via.placeholder.com/400x300/E5E7EB/6B7280?text=Photo+Not+Found';
+                    }}
+                  />
+                </div>
+              )) || (
+                <div className="col-span-2 text-center py-8 text-muted-foreground">
+                  No photos available for this delivery
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )
+    }
+  ];
 
   if (loading) {
     return (
@@ -150,55 +315,7 @@ const DeliveryReports = ({ userRole }) => {
 
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Dealership</label>
-              <Select value={filters.dealership} onValueChange={(value) => setFilters({ ...filters, dealership: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All dealerships" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All dealerships</SelectItem>
-                  {dealerships.map((dealership) => (
-                    <SelectItem key={dealership.id} value={dealership.name}>{dealership.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Car Model</label>
-              <Select value={filters.model} onValueChange={(value) => setFilters({ ...filters, model: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All models" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">All models</SelectItem>
-                  {models.map((model) => (
-                    <SelectItem key={model} value={model}>{model}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Date</label>
-              <input
-                type="date"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={filters.date}
-                onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Delivery Reports */}
+      {/* Search and Filters */}
       <Card>
         <CardHeader>
           <CardTitle>Delivery Reports</CardTitle>
@@ -210,93 +327,29 @@ const DeliveryReports = ({ userRole }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredDeliveries.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {deliveries.length === 0 
-                ? "No deliveries found. Start by adding some deliveries." 
-                : "No deliveries match your current filters. Try adjusting the filters above."
-              }
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Operator</TableHead>
-                  <TableHead>Dealership</TableHead>
-                  <TableHead>Consent</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDeliveries.map((delivery) => (
-                  <TableRow key={delivery.id}>
-                    <TableCell className="font-medium">{delivery.id}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{delivery.vehicle_model}</div>
-                        <div className="text-sm text-muted-foreground">{delivery.vehicle_color}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{delivery.customer_name}</div>
-                        <div className="text-sm text-muted-foreground">{delivery.whatsapp_number}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{delivery.operator_name}</TableCell>
-                    <TableCell>{delivery.dealership_name}</TableCell>
-                    <TableCell>
-                      <Badge variant={delivery.consent_to_share ? "default" : "secondary"}>
-                        {delivery.consent_to_share ? 'Yes' : 'No'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{formatDate(delivery.created_at)}</TableCell>
-                    <TableCell>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" onClick={() => setSelectedDelivery(delivery)}>
-                            View Photos
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-4xl">
-                          <DialogHeader>
-                            <DialogTitle>Delivery Photos - {delivery.customer_name}</DialogTitle>
-                            <DialogDescription>
-                              {delivery.vehicle_model} delivered by {delivery.operator_name}
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-                            {delivery.framed_image_urls?.map((url, index) => (
-                              <div key={index} className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                                <img 
-                                  src={url} 
-                                  alt={`Delivery photo ${index + 1}`}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.target.src = 'https://via.placeholder.com/400x300/E5E7EB/6B7280?text=Photo+Not+Found';
-                                  }}
-                                />
-                              </div>
-                            )) || (
-                              <div className="col-span-2 text-center py-8 text-muted-foreground">
-                                No photos available for this delivery
-                              </div>
-                            )}
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <SearchFilter
+            searchPlaceholder="Search deliveries by customer, vehicle, operator..."
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={filterOptions}
+            activeFilters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={handleClearFilters}
+          />
         </CardContent>
       </Card>
+
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={filteredDeliveries}
+        loading={loading}
+        emptyMessage={
+          deliveries.length === 0 
+            ? "No deliveries found. Start by adding some deliveries." 
+            : "No deliveries match your current search and filters."
+        }
+      />
     </div>
   );
 };
