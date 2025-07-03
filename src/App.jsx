@@ -13,6 +13,7 @@ const queryClient = new QueryClient();
 
 const App = () => {
   console.log('App component rendering');
+  
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +83,7 @@ const App = () => {
 
   const renderUserInterface = () => {
     console.log('renderUserInterface called, user:', user);
+    
     if (!user) {
       console.log('No user found, rendering Login component');
       return <Login onLogin={handleLogin} />;
