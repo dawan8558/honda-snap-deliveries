@@ -42,8 +42,8 @@ const PhotoComposer = ({ originalPhoto, selectedFrames, onCompositeComplete }) =
     try {
       const currentFrame = selectedFrames[currentFrameIndex];
       
-      // Load the original photo
-      const photoImg = await FabricImage.fromURL(originalPhoto);
+      // Load the original photo with CORS
+      const photoImg = await FabricImage.fromURL(originalPhoto, { crossOrigin: 'anonymous' });
       photoImg.set({
         left: 50 + photoPosition.x,
         top: 50 + photoPosition.y,
@@ -53,8 +53,8 @@ const PhotoComposer = ({ originalPhoto, selectedFrames, onCompositeComplete }) =
         moveCursor: 'move',
       });
 
-      // Load the frame
-      const frameImg = await FabricImage.fromURL(currentFrame.image_url);
+      // Load the frame with CORS
+      const frameImg = await FabricImage.fromURL(currentFrame.image_url, { crossOrigin: 'anonymous' });
       frameImg.set({
         left: 0,
         top: 0,
@@ -126,8 +126,48 @@ const PhotoComposer = ({ originalPhoto, selectedFrames, onCompositeComplete }) =
         dataURL: dataURL
       };
     } catch (error) {
-      console.error('Error generating composite:', error);
-      throw error;
+      console.error('Client-side compositing failed, trying server-side:', error);
+      
+      // Fallback to server-side compositing
+      try {
+        const response = await fetch('/functions/v1/composite-image', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            originalPhotoUrl: originalPhoto,
+            frameUrl: selectedFrames[currentFrameIndex].image_url,
+            position: photoPosition,
+            scale: photoScale[0]
+          })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          // Convert base64 to blob
+          const byteCharacters = atob(result.compositeImage.split(',')[1]);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'image/png' });
+          
+          return {
+            frameId: selectedFrames[currentFrameIndex].id,
+            frameName: selectedFrames[currentFrameIndex].name,
+            blob: blob,
+            dataURL: result.compositeImage
+          };
+        } else {
+          throw new Error('Server-side compositing failed');
+        }
+      } catch (serverError) {
+        console.error('Server-side compositing also failed:', serverError);
+        throw error; // Throw original error
+      }
     }
   };
 
