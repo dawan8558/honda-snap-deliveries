@@ -36,11 +36,14 @@ const App = () => {
       setProfileLoading(true);
       
       try {
+        console.log('Making Supabase request for profile...');
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', authUser.id)
           .maybeSingle();
+        
+        console.log('Supabase response received:', { profile, error });
         
         if (!mounted) return;
         
