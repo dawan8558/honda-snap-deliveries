@@ -451,7 +451,8 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
                       console.log('Moving to frames step, available frames:', availableFrames.length);
                       setCurrentStep('frames');
                     }}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    variant="default"
+                    className="flex-1"
                   >
                     Use This Photo
                   </Button>
