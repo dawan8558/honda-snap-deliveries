@@ -234,7 +234,7 @@ const PhotoCapture = ({ vehicle, operator, onComplete, onBack }) => {
         if (photo.blob) {
           try {
             const fileExt = 'png';
-            const fileName = `delivery_${vehicle.id}_${operator.id}_${Date.now()}_${i}.${fileExt}`;
+            const fileName = `${operator.id}/delivery_${vehicle.id}_${Date.now()}_${i}.${fileExt}`;
             
             console.log(`Uploading image ${i + 1}/${framedPhotos.length}: ${fileName}`);
             
